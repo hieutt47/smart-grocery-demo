@@ -18,7 +18,7 @@ Evidence was produced during implementation by the delegated agent and inspected
 1. Connect owner's GitHub account; create private repository, original T01-T24 issues/project, run hosted CI.
 2. Connect Render and deploy the explicitly free configuration; verify public HTTPS, cold start, restart/session behavior and both journeys online.
 3. Docker configuration has not been executed locally (Docker unavailable).
-4. Run stakeholder plus two user trials; record actual observations in DEMO.md. No completion metric or feedback is claimed.
+4. Run stakeholder plus two user trials; record actual observations in DEMO.md. Initial positive visual feedback was supplied by the owner on 2026-10-18; see DEMO.md FB-001. Task completion and formal acceptance remain unverified.
 5. Requirements traceability completed locally in docs/REQUIREMENTS_TRACEABILITY.md; prototype review and release notes/tag pending after remaining release gates pass.
 6. Food content is sample, self-authored material and has not received expert review. Performance p95/load targets have not been measured.
 

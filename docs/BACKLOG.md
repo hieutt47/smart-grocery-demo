@@ -1,6 +1,6 @@
 # Implementation backlog - approved baseline
 
-All tasks retain original IDs and P0 priority. DONE LOCAL means implemented locally, not released online. Updated 2026-10-17.
+All tasks retain original IDs and P0 priority. DONE LOCAL means implemented locally, not released online. Updated 2026-10-18.
 
 | ID | Scope | Dependencies | Status |
 |---|---|---|---|
@@ -26,9 +26,9 @@ All tasks retain original IDs and P0 priority. DONE LOCAL means implemented loca
 | T20 | History, reorder preview, erase and expiry | T11,T19 | DONE LOCAL |
 | T21 | Domain/API, assistant, fake clock and ownership tests | T14,T17,T20 | DONE LOCAL: 53 backend tests |
 | T22 | A/B E2E, mobile, two browsers, restart, refresh, online | T21 | PARTIAL: 10 local browser tests pass; online pending |
-| T23 | Stakeholder and two user trials, UX fixes | T22 | PENDING: real participants required |
+| T23 | Stakeholder and two user trials, UX fixes | T22 | PARTIAL: initial positive visual feedback FB-001 in DEMO.md; independent A/B trials and two users pending |
 | T24 | Runbook, API, diagrams, video, notes and release tag | T23 | PARTIAL: local handoff; final release awaits online/UAT |
 
 Acceptance evidence: VALIDATION.md, backend/tests, frontend/e2e, artifacts screenshots and video. Original readme.md is authoritative. Brief mapping: T09-T11 sections 6.1/6.2/6.8; T12-T14 sections 6.4-6.6; T15-T17 sections 6.3/6.6/13; T18-T20 sections 6.7-6.9; T21-T24 sections 8/9/14.
 
-Docker is prepared but not locally executed. Real LLM, payments, robots and persistent accounts remain outside v0.1. No remote issue board or stakeholder feedback is claimed.
+Docker is prepared but not locally executed. Real LLM, payments, robots and persistent accounts remain outside v0.1. No remote issue board is claimed. Initial feedback is recorded as FB-001; formal usability acceptance remains pending.

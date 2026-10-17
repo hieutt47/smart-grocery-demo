@@ -21,7 +21,7 @@ Reproduce visual evidence with `node scripts/capture-demo.mjs` while the E2E ser
 3. “Find the earlier order and buy it again, adjusting quantity before confirmation.” Observe whether preview and ordering are distinguishable.
 4. Ask what the participant believes AI, payment and robot functions actually do. Any mistaken belief is a disclosure/UX defect.
 
-## Feedback record — not yet collected
+## Feedback record template - task-based trials pending
 
 - Participant / role (with permission):
 - Date, device/browser and build/URL:
@@ -34,3 +34,16 @@ Reproduce visual evidence with `node scripts/capture-demo.mjs` while the E2E ser
 - Follow-up owner / date:
 
 No stakeholder session has been conducted by this implementation agent. Leave these fields empty until real observations are available.
+
+## FB-001 - Initial visual feedback
+
+- Source: message forwarded by the project owner on 2026-10-18.
+- Stakeholder: Hoàng Hải.
+- Timestamp as supplied: 17/10/2026 18:32:25 (timezone unspecified).
+- Exact quote: "A thấy bước đầu cũng ok rồi nhìn cũng dễ và thuận mắt"
+- Classification: positive initial impression of visual clarity and appearance.
+- Interpretation: supports retaining the visual direction for the next usability trial. Does not establish successful task completion or formal acceptance.
+- Device/browser, build/URL, video versus live app, and journeys attempted: not reported.
+- Next action: retain current visual direction; invite independent A/B trials using the prompts above. Record completion, hesitation and understanding of demo limitations.
+- Linked tasks: T05 (initial visual feedback), T23 (PARTIAL; task-based trials and two users pending). No additional feature requirement inferred.
+- Publication: local record only; permission for a named public portfolio quote has not been established.
