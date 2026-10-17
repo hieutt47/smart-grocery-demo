@@ -5,12 +5,12 @@ All tasks retain original IDs and P0 priority. DONE LOCAL means implemented loca
 | ID | Scope | Dependencies | Status |
 |---|---|---|---|
 | T01 | Requirements register and decision mapping | - | DONE LOCAL: full traceability & decision mapping in docs/REQUIREMENTS_TRACEABILITY.md |
-| T02 | Repository, board, templates, milestones | T01 | PARTIAL: local Git/templates; remote GitHub blocked |
+| T02 | Repository, board, templates, milestones | T01 | DONE: remote GitHub repository connected & pushed (hieutt47/smart-grocery-demo) |
 | T03 | Architecture, ERD, API and three ADRs | T01 | DONE LOCAL |
-| T04 | Runtime, scaffold, health, Render free deploy | T03 | PARTIAL: HTTPS hosting blocked on account connection |
+| T04 | Runtime, scaffold, health, Render free deploy | T03 | PARTIAL: repository ready; Render Blueprint import pending |
 | T05 | Flows, wireframes, tokens, prototype | T01 | PARTIAL: working UI; separate prototype review pending |
 | T06 | App shell, navigation, forms, UI states | T04,T05 | DONE LOCAL |
-| T07 | Lint, typecheck, tests, build, CI and locks | T04 | PARTIAL: local checks pass; hosted CI unrun |
+| T07 | Lint, typecheck, tests, build, CI and locks | T04 | PARTIAL: local checks pass; hosted GitHub Actions CI triggered |
 | T08 | Schema, migration, session, 30 SKU/12 recipes/3 meals | T03,T04 | DONE LOCAL |
 | T09 | Catalog, search, detail, add | T06,T08 | DONE LOCAL |
 | T10 | Server cart, totals, versions, isolation | T09 | DONE LOCAL |
