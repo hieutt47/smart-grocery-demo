@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: bua-nha-demo
+    runtime: docker
+    plan: free
+    numInstances: 1
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/v1/health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: DATABASE_URL
+        value: sqlite:////app/data/grocery.db
+      - key: ALLOWED_ORIGINS
+        value: ""
