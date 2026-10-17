@@ -19,7 +19,7 @@ Evidence was produced during implementation by the delegated agent and inspected
 2. Connect Render and deploy the explicitly free configuration; verify public HTTPS, cold start, restart/session behavior and both journeys online.
 3. Docker configuration has not been executed locally (Docker unavailable).
 4. Run stakeholder plus two user trials; record actual observations in DEMO.md. No completion metric or feedback is claimed.
-5. Complete requirements traceability and prototype review; finalize release notes/tag only after release gates pass.
+5. Requirements traceability completed locally in docs/REQUIREMENTS_TRACEABILITY.md; prototype review and release notes/tag pending after remaining release gates pass.
 6. Food content is sample, self-authored material and has not received expert review. Performance p95/load targets have not been measured.
 
 No paid service, real payment, real robot or LLM integration is claimed. SQLite hosting data is temporary. Do not describe this candidate as a completed v0.1 release.

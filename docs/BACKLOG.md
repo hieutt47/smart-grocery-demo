@@ -4,7 +4,7 @@ All tasks retain original IDs and P0 priority. DONE LOCAL means implemented loca
 
 | ID | Scope | Dependencies | Status |
 |---|---|---|---|
-| T01 | Requirements register and decision mapping | - | PARTIAL: concept preserved; full traceability pending |
+| T01 | Requirements register and decision mapping | - | DONE LOCAL: full traceability & decision mapping in docs/REQUIREMENTS_TRACEABILITY.md |
 | T02 | Repository, board, templates, milestones | T01 | PARTIAL: local Git/templates; remote GitHub blocked |
 | T03 | Architecture, ERD, API and three ADRs | T01 | DONE LOCAL |
 | T04 | Runtime, scaffold, health, Render free deploy | T03 | PARTIAL: HTTPS hosting blocked on account connection |
