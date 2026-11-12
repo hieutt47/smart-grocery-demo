@@ -22,5 +22,5 @@ export async function api<T>(path: string, method = 'GET', body?: unknown, signa
   return data;
 }
 
-export const money = (value: number) => new Intl.NumberFormat('vi-VN', {style: 'currency', currency: 'VND'}).format(value);
+export const money = (value: number) => new Intl.NumberFormat('vi-VN').format(value) + ' đ';
 export const dateTime = (value: string) => new Intl.DateTimeFormat('vi-VN', {dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh'}).format(new Date(value));
