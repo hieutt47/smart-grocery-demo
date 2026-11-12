@@ -1,11 +1,11 @@
 # Deployment and operations
 
-Status: prepared locally; not deployed. No GitHub repository, remote project board or public URL has been created. Connected GitHub/Render accounts are still required. Source stays private. Do not substitute a paid plan if free capacity is unavailable.
+Status reviewed 2026-10-25: the local repository has GitHub remote `hieutt47/smart-grocery-demo`, and the backlog records the source push. Hosted CI success, a remote project board and a public demo URL have not been verified. Render provisioning is still pending in the recorded backlog; account access and explicit deployment authorization are required. Source stays private. Do not substitute a paid plan if free capacity is unavailable.
 
 ## Reviewable deployment
 
-1. Connect the owner's GitHub and Render accounts through supported integrations. Create a **private** repository only with the owner's authorized account; push the reviewed source and lockfiles, excluding `.env`, databases, caches and artifacts containing sessions.
-2. Enable GitHub Actions and run `Demo CI`. It checks Python lint/format/tests, frontend lint/typecheck/build, both browser projects, then builds and smoke-tests the container. CI has been authored, but no hosted run has occurred yet.
+1. Verify access to the existing GitHub repository and connect the owner's Render account through supported integrations; do not create a duplicate repository. Keep source private. Push reviewed source and lockfiles only when authorized, excluding `.env`, databases, caches and artifacts containing sessions.
+2. Inspect `Demo CI` for the exact candidate commit. It checks Python lint/format/tests, frontend lint/typecheck/build, both browser projects, then builds and smoke-tests the container. The backlog records CI as triggered; a successful hosted run still needs verification.
 3. Import `render.yaml` as a Blueprint. Review that it contains exactly one web service with `plan: free`, no disk, no managed database and no paid resource. The Dockerfile builds the frontend, installs the frozen Python lock and runs as a non-root user.
 4. Use the service's generated HTTPS URL. Render injects `RENDER_EXTERNAL_URL`, which is added to allowed write origins. `COOKIE_SECURE=true` is required. If a custom domain is later used, explicitly add its full HTTPS origin to `ALLOWED_ORIGINS`.
 5. The Blueprint uses `autoDeployTrigger: checksPass`; after initial provisioning, linked-branch deploys wait for CI checks. Alternatively disable automatic deploys in Render and deploy manually after a green CI run. Initial Blueprint provisioning itself must only happen after review and CI.

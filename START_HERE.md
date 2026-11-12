@@ -2,7 +2,7 @@
 
 Demo mobile-first có hai lối vào: mua trực tiếp hoặc nhờ trợ lý gợi ý món. Tên “Bữa Nhà” là tên tạm cho bản trình diễn; [readme.md](readme.md) giữ nguyên hồ sơ ý tưởng gốc.
 
-**Trợ lý dùng quy tắc/kịch bản, chưa gọi mô hình AI. Giá, tồn kho, thanh toán và robot đều mô phỏng. Không nhập thông tin cá nhân thật.** Chưa có URL public hoặc repo GitHub; xem trạng thái thực tế trong [báo cáo kiểm thử](docs/VALIDATION.md).
+**Trợ lý dùng quy tắc/kịch bản, chưa gọi mô hình AI. Giá, tồn kho, thanh toán và robot đều mô phỏng. Không nhập thông tin cá nhân thật.** Repo GitHub đã được kết nối tại `hieutt47/smart-grocery-demo`; chưa có URL demo public được xác minh. Kết quả CI online và trạng thái phát hành cần đối chiếu trong [báo cáo kiểm thử](docs/VALIDATION.md).
 
 ## Chạy tại máy
 
@@ -37,6 +37,7 @@ Trên máy bàn giao, browser đã tải vào `.cache/browsers`: đặt `$env:PL
 
 ## Bàn giao
 
+- [Theo dõi tiến độ từng bước](docs/TIEN_DO.md): báo cáo tiếng Việt theo 5 chặng, việc tiếp theo, điều kiện hoàn thành và nhật ký cập nhật.
 - [Kiến trúc & ERD](docs/ARCHITECTURE.md), [quyết định kỹ thuật](docs/adr/001-stack.md), [OpenAPI](docs/openapi.json).
 - [Backlog T01–T24](docs/BACKLOG.md): trạng thái, phụ thuộc, tiêu chí chấp nhận.
 - [Triển khai Render miễn phí](docs/DEPLOYMENT.md), [kịch bản trình diễn & phản hồi](docs/DEMO.md).
