@@ -1,4 +1,6 @@
 # HỒ SƠ BÀN GIAO Ý TƯỞNG DỰ ÁN
+[![Demo CI](https://github.com/hieutt47/smart-grocery-demo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hieutt47/smart-grocery-demo/actions/workflows/ci.yml)
+
 ## Ứng dụng đi chợ thông minh tích hợp AI và robot giao hàng tại chung cư
 
 **Tên dự án:** Chưa đặt tên chính thức. Tạm gọi **AI Smart Grocery & Robot Delivery**.  
