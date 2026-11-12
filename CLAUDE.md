@@ -101,3 +101,13 @@ The deployment is one API process serving the built SPA with SQLite, not a multi
 docker build -t grocery-demo .
 docker run --rm -p 8000:8000 -e COOKIE_SECURE=false -e ALLOWED_ORIGINS=http://localhost:8000 grocery-demo
 ```
+
+## Quy trình hoàn thành UI
+Khi xong một trang hoặc một khối UI lớn (không áp dụng cho sửa nhỏ lẻ), tự chạy vòng kiểm tra tối đa 3 vòng:
+1. Gọi subagent qa-tester để lấy số liệu và ảnh chụp.
+2. Gọi subagent ui-reviewer, chỉ đưa đường dẫn ảnh, không tóm tắt công việc của mình.
+3. Gọi subagent code-reviewer cho các file vừa sửa.
+4. Sửa lỗi mức cao/trung bình rồi quay lại bước 1.
+Dừng khi cả ba trả PASS hoặc sau 3 vòng. Báo người dùng: số vòng, lỗi đã sửa, lỗi còn lại, đường dẫn ảnh cuối, và đính kèm bằng chứng mà mỗi reviewer đã nêu (skill đã load, lệnh đã chạy). Không tự khẳng định PASS khi reviewer chưa trả về.
+Mọi giao diện phải theo docs/DESIGN.md.
+

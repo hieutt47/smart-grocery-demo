@@ -12,7 +12,7 @@ export function Orders() {
   return (
     <>
       <PageTitle
-        eyebrow="LỊCH SỬ ĐƠN HÀNG"
+        eyebrow="Lịch sử đơn hàng"
         title="Những bữa cơm nhà đã chọn"
         description="Danh sách các đơn mô phỏng trong phiên làm việc hiện tại. Bạn có thể xem lộ trình robot hoặc mua lại bất kỳ lúc nào."
       />
@@ -161,7 +161,7 @@ export function OrderDetail() {
             <div className="order-heading-copy">
               <span className="order-code-badge">
                 <Bot size={13} className="text-emerald" />
-                <span>ĐƠN MÔ PHỎNG #{o.id.slice(0, 8).toUpperCase()}</span>
+                <span>Đơn mô phỏng #{o.id.slice(0, 8).toUpperCase()}</span>
               </span>
               <h1>
                 {delivery.complete
@@ -189,7 +189,7 @@ export function OrderDetail() {
                   <Bot size={22} className="text-emerald" />
                   <h2>Lộ trình Robot tự hành</h2>
                 </div>
-                <span className="sample-tag">MÔ PHỎNG REALTIME</span>
+                <span className="sample-tag">Mô phỏng trực tiếp</span>
               </div>
 
               {/* Graphic 3-stop route indicator */}
@@ -287,7 +287,7 @@ export function OrderDetail() {
               {/* Simulation Controls */}
               {!delivery.complete && (
                 <div className="simulation-controls">
-                  <span className="simulation-controls-label">ĐIỀU KHIỂN MÔ PHỎNG:</span>
+                  <span className="simulation-controls-label">Điều khiển mô phỏng:</span>
                   <div className="simulation-buttons-row">
                     <button
                       type="button"
@@ -300,11 +300,11 @@ export function OrderDetail() {
                     </button>
                     <button
                       type="button"
-                      className="text-button"
+                      className="button ghost advance-complete-btn"
                       disabled={busy}
                       onClick={() => void advance('complete')}
                     >
-                      <FastForward size={16} />
+                      <FastForward size={16} aria-hidden="true" />
                       <span>
                         {o.delivery_mode === 'scheduled'
                           ? 'Tua đến giờ giao (mô phỏng)'

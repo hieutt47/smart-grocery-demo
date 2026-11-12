@@ -4,8 +4,8 @@ test('A: direct purchase, immediate delivery, reload, reorder preview', async ({
   await page.goto('/');
   await expect(page.getByRole('heading', {name: /Bữa ngon bắt đầu/})).toBeVisible();
   await page.getByRole('link', {name: 'Khám phá gian chợ', exact: true}).click();
-  await page.getByRole('textbox', {name: 'Tìm kiếm sản phẩm trong danh mục'}).fill('thit bo');
-  await page.getByRole('button', {name: 'Tìm', exact: true}).click();
+  await page.getByRole('textbox', {name: 'Tìm sản phẩm trên Bữa Nhà'}).fill('thit bo');
+  await page.getByRole('button', {name: 'Tìm sản phẩm', exact: true}).click();
   await page.getByRole('button', {name: 'Thêm Thịt bò vào giỏ hàng', exact: true}).click();
   await expect(page.getByRole('status')).toContainText('Đã thêm');
   await page.goto('/cart');
@@ -92,13 +92,13 @@ test('session reset is explicit and clears only current session', async ({page, 
 
 test('catalog search stays aligned with browser history', async ({page}) => {
   await page.goto('/products?q=trung');
-  const search = page.getByRole('textbox', {name: 'Tìm kiếm sản phẩm trong danh mục'});
+  const search = page.getByRole('textbox', {name: 'Tìm sản phẩm trên Bữa Nhà'});
   await search.fill('ca chua');
-  await page.getByRole('button', {name: 'Tìm', exact: true}).click();
-  await expect(page).toHaveURL(/q=ca\+chua/);
+  await page.getByRole('button', {name: 'Tìm sản phẩm', exact: true}).click();
+  await expect(page).toHaveURL(/q=ca(%20|\+)chua/);
   await page.goBack();
   await expect(search).toHaveValue('trung');
-  await expect(page.getByText('cho từ khóa “trung”', {exact: false})).toBeVisible();
+  await expect(page.getByText('cho “trung”', {exact: false})).toBeVisible();
 });
 
 test('mobile confirmation fits and cart quantity is disabled while saving', async ({page}) => {

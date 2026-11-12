@@ -1,14 +1,15 @@
 import {useEffect, useState} from 'react';
 import {Link, useNavigate, useSearchParams} from 'react-router-dom';
-import {ArrowLeft, ArrowRight, Check, ChefHat, Clock3, Info, ShoppingBasket, Users, UtensilsCrossed, X} from 'lucide-react';
+import {ArrowLeft, ArrowRight, ChefHat, Clock3, Info, ShoppingBasket, Users, UtensilsCrossed, X} from 'lucide-react';
 import {api, money} from '../api';
 import {useStore} from '../context';
 import {LoadState, Quantity} from '../components';
+import {RecipeVisual} from '../recipe-art';
 import type {Cart, Quote, Recipe, Selection} from '../types';
 
 export function Cook() {
   const [params] = useSearchParams();
-  const ids = (params.get('ids') || '').split(',').filter(Boolean).slice(0, 3);
+  const ids = Array.from(new Set((params.get('ids') || '').split(',').filter(Boolean))).slice(0, 3);
   const key = ids.join(',');
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [servings, setServings] = useState(Math.max(1, Math.min(6, Number(params.get('servings')) || 2)));
@@ -19,7 +20,8 @@ export function Cook() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [error, setError] = useState('');
   const [quoteError, setQuoteError] = useState('');
-  const [revision, setRevision] = useState(0);
+  const [recipeRevision, setRecipeRevision] = useState(0);
+  const [quoteRevision, setQuoteRevision] = useState(0);
   const {cart, setCart, act, busy} = useStore();
   const navigate = useNavigate();
   const lighter = params.get('lighter') === '1';
@@ -28,7 +30,10 @@ export function Cook() {
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    setSelected({});
+    setSelected(prev => {
+      const currentKeySet = new Set(key.split(',').filter(Boolean));
+      return Object.fromEntries(Object.entries(prev).filter(([rid]) => currentKeySet.has(rid)));
+    });
     if (!key) {
       setError('Chưa có món được chọn. Hãy quay lại góc bếp để chọn món nhé.');
       setLoading(false);
@@ -46,7 +51,7 @@ export function Cook() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [key, lighter, revision]);
+  }, [key, lighter, recipeRevision]);
 
   const selections: Selection[] = recipes.map(r => ({
     recipe_id: r.id,
@@ -58,12 +63,20 @@ export function Cook() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const rows: Selection[] = JSON.parse(serialized);
-    setQuote(null);
-    setQuoteError('');
-    if (!rows.length) return;
+
+    // Kiểm tra xem có bất kỳ nguyên liệu nào được chọn không
+    const hasAnySelection = selections.some(r => r.ingredient_ids && r.ingredient_ids.length > 0);
+    if (!hasAnySelection) {
+      setQuote(null);
+      setQuoteError('');
+      setQuoteLoading(false);
+      return;
+    }
+
+    // Mô hình Stale-While-Revalidate: Giữ quote cũ khi đang tính lại để UI không bị giật nhấp nháy
     setQuoteLoading(true);
-    api<Quote>('/recipe-quotes', 'POST', {selections: rows}, controller.signal)
+    setQuoteError('');
+    api<Quote>('/recipe-quotes', 'POST', {selections}, controller.signal)
       .then(setQuote)
       .catch(e => {
         if (e.name !== 'AbortError') setQuoteError(e.message);
@@ -72,7 +85,7 @@ export function Cook() {
         if (!controller.signal.aborted) setQuoteLoading(false);
       });
     return () => controller.abort();
-  }, [serialized, revision]);
+  }, [serialized, quoteRevision]);
 
   function toggle(rid: string, iid: string) {
     setSelected(prev => ({
@@ -92,78 +105,134 @@ export function Cook() {
     }
   }
 
+  const isSingle = recipes.length === 1;
+
   return (
     <>
       <Link className="back-link" to="/recipes">
-        <ArrowLeft size={17} />
+        <ArrowLeft size={17} aria-hidden="true" />
         <span>Khám phá thêm công thức</span>
       </Link>
 
-      <LoadState loading={loading} error={error} retry={() => setRevision(v => v + 1)} />
+      <LoadState loading={loading} error={error} retry={() => setRecipeRevision(v => v + 1)} />
 
       {!loading && !error && (
         <>
-          <div className="cook-title">
-            <div className="cook-title-left">
-              <span className="eyebrow">CHỌN NGUYÊN LIỆU THÔNG MINH</span>
-              <h1>{recipes.length === 1 ? recipes[0].name : 'Mâm cơm bạn đã chọn'}</h1>
-              <p className="muted">
-                Tích chọn những nguyên liệu cần mua. Những gia vị hoặc đồ đã có sẵn trong bếp, bạn chỉ cần bỏ qua.
-              </p>
+          {/* Header dành riêng cho 1 món: Không lặp H1 và H2, căn lề 24px chuẩn */}
+          {isSingle ? (
+            <div className="cook-single-hero">
+              <div className="cook-single-art">
+                <RecipeVisual recipe={recipes[0]} />
+              </div>
+              <div className="cook-single-info">
+                <span className="eyebrow">Chi tiết công thức & nguyên liệu</span>
+                <h1>{recipes[0].name}</h1>
+                <div className="cook-cover-tags">
+                  <span className="cook-time-tag">
+                    <Clock3 size={14} aria-hidden="true" />
+                    <span>~{recipes[0].minutes} phút</span>
+                  </span>
+                  <span className="cook-servings-tag">
+                    <Users size={14} aria-hidden="true" />
+                    <span>Gốc {recipes[0].servings} người</span>
+                  </span>
+                </div>
+                <div className="servings-control" role="group" aria-label="Khẩu phần ăn">
+                  <span className="servings-label">
+                    <Users size={17} className="text-emerald" aria-hidden="true" />
+                    <span>Nấu cho</span>
+                  </span>
+                  <Quantity value={servings} max={6} onChange={setServings} />
+                  <span className="servings-unit">người</span>
+                </div>
+              </div>
             </div>
-            <div className="servings-control" role="group" aria-label="Khẩu phần ăn">
-              <span className="servings-label">
-                <Users size={17} className="text-emerald" />
-                <span>Khẩu phần</span>
-              </span>
-              <Quantity value={servings} max={6} onChange={setServings} />
+          ) : (
+            <div className="cook-title">
+              <div className="cook-title-left">
+                <span className="eyebrow">Mâm cơm gia đình</span>
+                <h1>Mâm cơm bạn đã chọn</h1>
+                <p className="muted">
+                  Tích chọn những nguyên liệu cần mua. Những gia vị hoặc đồ đã có sẵn trong bếp, bạn chỉ cần bỏ qua.
+                </p>
+              </div>
+              <div className="servings-control" role="group" aria-label="Khẩu phần ăn">
+                <span className="servings-label">
+                  <Users size={17} className="text-emerald" aria-hidden="true" />
+                  <span>Khẩu phần</span>
+                </span>
+                <Quantity value={servings} max={6} onChange={setServings} />
+                <span className="servings-unit">người</span>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="cook-layout">
             <div className="cook-main">
               {recipes.map(r => (
                 <section className="cook-recipe" key={r.id}>
-                  <div className={`cook-cover ${r.color}`}>
-                    <span className="dish-plate">
-                      <ChefHat size={34} strokeWidth={1.3} />
-                    </span>
-                    <div className="cook-cover-meta">
-                      <h2>{r.name}</h2>
-                      <span className="cook-time-tag">
-                        <Clock3 size={15} />
-                        <span>Thời gian chuẩn bị ~{r.minutes} phút</span>
-                      </span>
-                    </div>
-                    {recipes.length > 1 && (
+                  {/* Nếu nhiều món: Hiện cover riêng có nút xóa cho từng món */}
+                  {!isSingle && (
+                    <div className="cook-cover">
+                      <div className="cook-cover-thumb">
+                        <RecipeVisual recipe={r} className="cook-cover-art" />
+                      </div>
+                      <div className="cook-cover-meta">
+                        <h2>{r.name}</h2>
+                        <div className="cook-cover-tags">
+                          <span className="cook-time-tag">
+                            <Clock3 size={14} aria-hidden="true" />
+                            <span>~{r.minutes} phút</span>
+                          </span>
+                          <span className="cook-servings-tag">
+                            <Users size={14} aria-hidden="true" />
+                            <span>Khẩu phần {servings} người</span>
+                          </span>
+                        </div>
+                      </div>
                       <button
                         type="button"
-                        className="icon-button"
+                        className="icon-button cook-remove-button"
                         aria-label={`Bỏ món ${r.name}`}
-                        onClick={() => navigate(`/cook?ids=${ids.filter(id => id !== r.id).join(',')}&servings=${servings}`)}
+                        onClick={() => {
+                          const nextIds = ids.filter(id => id !== r.id).join(',');
+                          const lighterParam = lighter ? '&lighter=1' : '';
+                          navigate(`/cook?ids=${nextIds}&servings=${servings}${lighterParam}`);
+                        }}
                       >
-                        <X size={18} />
+                        <X size={20} aria-hidden="true" />
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   <div className="cook-content">
                     <div className="section-heading compact">
                       <div className="flex-row items-center gap-2">
-                        <UtensilsCrossed size={18} className="text-emerald" />
-                        <h3>Nguyên liệu cần cho {servings} người</h3>
+                        <UtensilsCrossed size={18} className="text-emerald" aria-hidden="true" />
+                        {isSingle ? (
+                          <h2>Nguyên liệu cần cho {servings} người</h2>
+                        ) : (
+                          <h3>Nguyên liệu cần cho {servings} người</h3>
+                        )}
                       </div>
                       <button
                         type="button"
                         className="text-button"
-                        onClick={() =>
-                          setSelected(prev => ({
-                            ...prev,
-                            [r.id]: selected[r.id]?.length === r.ingredients?.length ? [] : r.ingredients!.map(i => i.id)
-                          }))
-                        }
+                        onClick={() => {
+                          setSelected(prev => {
+                            const current = prev[r.id] || [];
+                            const allIds = (r.ingredients || []).map(i => i.id);
+                            const isAllSelected = allIds.length > 0 && current.length === allIds.length;
+                            return {
+                              ...prev,
+                              [r.id]: isAllSelected ? [] : allIds
+                            };
+                          });
+                        }}
                       >
-                        {selected[r.id]?.length === r.ingredients?.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả nguyên liệu'}
+                        {(selected[r.id]?.length === r.ingredients?.length && (r.ingredients?.length || 0) > 0)
+                          ? 'Bỏ chọn tất cả'
+                          : 'Chọn tất cả nguyên liệu'}
                       </button>
                     </div>
 
@@ -171,6 +240,7 @@ export function Cook() {
                       <label className="variant-label">
                         <span>Tùy chỉnh khẩu vị:</span>
                         <select
+                          name="variant"
                           value={variants[r.id] || ''}
                           onChange={e => setVariants(v => ({...v, [r.id]: e.target.value}))}
                         >
@@ -184,7 +254,7 @@ export function Cook() {
 
                     {variants[r.id] && (
                       <p className="variant-note small muted">
-                        <Info size={13} className="text-emerald inline-icon" />
+                        <Info size={13} className="text-emerald inline-icon" aria-hidden="true" />
                         <span>{r.variants?.find(v => v.id === variants[r.id])?.note}</span>
                       </p>
                     )}
@@ -199,6 +269,7 @@ export function Cook() {
                           <label className={`ingredient-item ${isChecked ? 'selected' : ''}`} key={i.id}>
                             <input
                               type="checkbox"
+                              name={`${r.id}-${i.id}`}
                               checked={isChecked}
                               onChange={() => toggle(r.id, i.id)}
                             />
@@ -211,14 +282,21 @@ export function Cook() {
                       })}
                     </div>
 
-                    <h3 className="steps-title">
-                      <ChefHat size={20} className="text-emerald" />
-                      <span>Hướng dẫn các bước nấu</span>
-                    </h3>
+                    {isSingle ? (
+                      <h2 className="steps-title">
+                        <ChefHat size={18} className="text-emerald" aria-hidden="true" />
+                        <span>Hướng dẫn các bước nấu</span>
+                      </h2>
+                    ) : (
+                      <h3 className="steps-title">
+                        <ChefHat size={18} className="text-emerald" aria-hidden="true" />
+                        <span>Hướng dẫn các bước nấu</span>
+                      </h3>
+                    )}
 
                     <ol className="cooking-steps">
                       {r.steps?.map((s, i) => (
-                        <li key={s} className="step-item">
+                        <li key={`${r.id}-step-${i}`} className="step-item">
                           <span className="step-badge">{i + 1}</span>
                           <p className="step-text">{s}</p>
                         </li>
@@ -236,7 +314,7 @@ export function Cook() {
             {/* Sticky Calculation & Cart Summary */}
             <aside className="summary-card ingredient-summary" aria-label="Tóm tắt nguyên liệu cần mua">
               <span className="summary-icon">
-                <ShoppingBasket size={24} />
+                <ShoppingBasket size={24} aria-hidden="true" />
               </span>
               <h2>Mua đúng thứ bạn cần</h2>
               <p className="muted small">
@@ -253,7 +331,7 @@ export function Cook() {
               {quoteError && (
                 <div role="alert" className="inline-error">
                   <p>{quoteError}</p>
-                  <button type="button" className="button secondary small-button" onClick={() => setRevision(v => v + 1)}>
+                  <button type="button" className="button secondary small-button" onClick={() => setQuoteRevision(v => v + 1)}>
                     Thử lại
                   </button>
                 </div>
@@ -279,7 +357,7 @@ export function Cook() {
 
               {!quote?.items.length && !quoteLoading && (
                 <div className="selection-hint">
-                  <Check size={20} className="text-emerald" />
+                  <Info size={18} className="text-emerald" aria-hidden="true" />
                   <span>Hãy tích chọn ít nhất một nguyên liệu bên trái để xem tính toán chi phí.</span>
                 </div>
               )}
@@ -290,12 +368,13 @@ export function Cook() {
               </div>
 
               <button
+                type="button"
                 className="button primary full"
                 disabled={busy || quoteLoading || !!quoteError || !quote?.items.length || !!quote?.missing.length}
                 onClick={() => void add()}
               >
                 <span>Thêm {quote?.items.length || 0} mục vào giỏ</span>
-                <ArrowRight size={17} />
+                <ArrowRight size={17} aria-hidden="true" />
               </button>
 
               <p className="small muted center mt-2">
@@ -303,9 +382,27 @@ export function Cook() {
               </p>
             </aside>
           </div>
+
+          {/* Mobile Bottom Quick Action Bar */}
+          {quote && quote.items.length > 0 && (
+            <div className="cook-mobile-bar" role="region" aria-label="Thanh chốt nguyên liệu">
+              <div className="cook-mobile-bar-info">
+                <span className="cook-mobile-bar-label">{quote.items.length} món cần mua</span>
+                <strong className="cook-mobile-bar-price">{money(quote.total)}</strong>
+              </div>
+              <button
+                type="button"
+                className="button primary cook-mobile-bar-btn"
+                disabled={busy || quoteLoading || !!quoteError || !quote.items.length || !!quote.missing.length}
+                onClick={() => void add()}
+              >
+                <span>Thêm vào giỏ</span>
+                <ArrowRight size={16} aria-hidden="true" />
+              </button>
+            </div>
+          )}
         </>
       )}
     </>
   );
 }
-

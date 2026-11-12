@@ -1,6 +1,6 @@
 import {useRef, useState} from 'react';
 import {Link, useNavigate} from 'react-router-dom';
-import {ArrowLeft, ArrowRight, Bot, CalendarClock, Check, Clock3, Info, MapPin, ShoppingBag, ShoppingBasket, Trash2} from 'lucide-react';
+import {ArrowLeft, ArrowRight, Bot, CalendarClock, Check, Clock3, Info, MapPin, ShoppingBag, ShoppingBasket, Sparkles, Trash2} from 'lucide-react';
 import {api, ApiError, money} from '../api';
 import {useStore} from '../context';
 import {Empty, PageTitle, ProductVisual, Quantity} from '../components';
@@ -23,7 +23,7 @@ export function CartPage() {
   return (
     <>
       <PageTitle
-        eyebrow="GIỎ HÀNG CỦA BẠN"
+        eyebrow="Giỏ hàng của bạn"
         title="Chuẩn bị cho bữa ngon"
         description="Kiểm tra lại số lượng các món đồ cần mua, sau đó tiến hành chọn lịch nhận hàng."
       />
@@ -42,7 +42,7 @@ export function CartPage() {
               {cart.items.map(i => (
                 <article className="cart-row" key={i.product_id}>
                   <Link to={`/products/${i.product_id}`} className="cart-art" aria-label={`Xem ${i.name}`}>
-                    <ProductVisual id={i.product_id} name={i.name} />
+                    <ProductVisual id={i.product_id} name={i.name} category={i.category} />
                   </Link>
 
                   <div className="cart-item-copy">
@@ -113,6 +113,18 @@ export function CartPage() {
               <span>Đây là bản demo trải nghiệm. Đơn hàng và chi phí đều là mô phỏng, không thu tiền thật.</span>
             </div>
           </aside>
+
+          {/* Sticky mobile bar for rapid checkout */}
+          <div className="cart-mobile-bar" role="region" aria-label="Thao tác đặt hàng">
+            <div className="cart-mobile-bar-info">
+              <span className="cart-mobile-bar-label">Tổng ({cart.count} gói)</span>
+              <strong className="cart-mobile-bar-price">{money(cart.total)}</strong>
+            </div>
+            <Link className="button primary cart-mobile-bar-btn" to="/checkout" aria-label="Đặt đơn ngay">
+              <span>Đặt đơn</span>
+              <ArrowRight size={15} aria-hidden="true" />
+            </Link>
+          </div>
         </div>
       )}
     </>
@@ -217,7 +229,7 @@ export function Checkout() {
       </Link>
 
       <PageTitle
-        eyebrow="ĐẶT HÀNG MÔ PHỎNG"
+        eyebrow="Đặt hàng mô phỏng"
         title="Thông tin nhận hàng căn hộ"
         description="Chỉ dùng địa chỉ và liên hệ hư cấu. Dữ liệu được lưu tạm trên máy chủ theo phiên demo; không thu tiền và không giao hàng thật."
       />
@@ -240,7 +252,7 @@ export function Checkout() {
                 </div>
                 <button
                   type="button"
-                  className="text-button fill-sample-btn"
+                  className="fill-sample-btn"
                   onClick={() => {
                     setAddress({
                       building: 'Chung cư An Nhiên (mẫu)',
@@ -251,7 +263,9 @@ export function Checkout() {
                     setContact('Khách demo 01 (0901234567)');
                     invalidate();
                   }}
+                  aria-label="Dùng thông tin mẫu"
                 >
+                  <Sparkles size={15} aria-hidden="true" />
                   <span>Dùng thông tin mẫu</span>
                 </button>
               </div>

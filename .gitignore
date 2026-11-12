@@ -22,3 +22,11 @@ artifacts/*.json
 .coverage
 htmlcov/
 *.tsbuildinfo
+
+# Scratch and temporary screenshots
+*.png
+!docs/redesign-shots/*.png
+.playwright-mcp/
+docs/check_session.py
+docs/t.py
+s -*

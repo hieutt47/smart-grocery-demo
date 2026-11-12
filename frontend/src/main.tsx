@@ -13,26 +13,58 @@ import {Orders, OrderDetail} from './pages/Orders';
 import {About} from './pages/About';
 import './styles.css';
 
-function App() {
-  const store = useStore();
+const NAVIGATION = [
+  {to: '/', label: 'Trang chủ', icon: House},
+  {to: '/products', label: 'Đi chợ', icon: Store},
+  {to: '/assistant', label: 'Gợi ý món', icon: Sparkles},
+  {to: '/cart', label: 'Giỏ hàng', icon: ShoppingBasket},
+  {to: '/orders', label: 'Đơn hàng', icon: ReceiptText}
+];
+
+function CommerceSearch() {
   const location = useLocation();
   const navigate = useNavigate();
   const query = new URLSearchParams(location.search).get('q') || '';
   const [search, setSearch] = useState(query);
+  const [prevQuery, setPrevQuery] = useState(query);
 
-  useEffect(() => setSearch(query), [query]);
+  if (query !== prevQuery) {
+    setPrevQuery(query);
+    setSearch(query);
+  }
+
+  return (
+    <form
+      className="commerce-search"
+      role="search"
+      onSubmit={event => {
+        event.preventDefault();
+        navigate(`/products?q=${encodeURIComponent(search.trim())}`);
+      }}
+    >
+      <input
+        type="text"
+        name="q"
+        autoComplete="off"
+        aria-label="Tìm sản phẩm trên Bữa Nhà"
+        placeholder="Hôm nay bạn muốn mua gì…"
+        value={search}
+        onChange={event => setSearch(event.target.value)}
+      />
+      <button type="submit" aria-label="Tìm sản phẩm">
+        <Search size={19} />
+      </button>
+    </form>
+  );
+}
+
+function App() {
+  const store = useStore();
+  const location = useLocation();
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
-
-  const navigation = [
-    {to: '/', label: 'Trang chủ', icon: House},
-    {to: '/products', label: 'Đi chợ', icon: Store},
-    {to: '/assistant', label: 'Gợi ý món', icon: Sparkles},
-    {to: '/cart', label: 'Giỏ hàng', icon: ShoppingBasket},
-    {to: '/orders', label: 'Đơn hàng', icon: ReceiptText}
-  ];
 
   return (
     <>
@@ -55,14 +87,10 @@ function App() {
       <header className="site-header commerce-header">
         <div className="commerce-masthead">
           <Brand />
-          <form className="commerce-search" role="search" onSubmit={event => {event.preventDefault(); navigate(`/products?q=${encodeURIComponent(search.trim())}`);}}>
-            <Search size={20} />
-            <input aria-label="Tìm sản phẩm trên Bữa Nhà" placeholder="Hôm nay bạn muốn mua gì?" value={search} onChange={event => setSearch(event.target.value)} />
-            <button type="submit" aria-label="Tìm sản phẩm"><Search size={19} /></button>
-          </form>
+          <CommerceSearch />
           <Link className="header-cart commerce-cart" to="/cart" aria-label={`Giỏ hàng có ${store.cart.count} sản phẩm`}><ShoppingBasket size={21} /><span>Giỏ của bạn</span><b>{store.cart.count}</b></Link>
         </div>
-        <nav className="commerce-links" aria-label="Điều hướng chính"><NavLink to="/" end>Trang chủ</NavLink><NavLink to="/products">Đi chợ</NavLink><NavLink to="/recipes">Góc bếp</NavLink><NavLink to="/assistant"><Sparkles size={15} /> Gợi ý món</NavLink><NavLink to="/orders">Đơn hàng</NavLink><NavLink to="/about">Về Bữa Nhà</NavLink><span>Tươi ý tưởng. Trọn bữa nhà.</span></nav>
+        <nav className="commerce-links" aria-label="Điều hướng chính"><NavLink to="/" end>Trang chủ</NavLink><NavLink to="/products">Đi chợ</NavLink><NavLink to="/recipes">Góc bếp</NavLink><NavLink to="/assistant"><Sparkles size={15} /> Gợi ý món</NavLink><NavLink to="/orders">Đơn hàng</NavLink><NavLink to="/about">Về Bữa Nhà</NavLink><span aria-hidden="true">Tươi ý tưởng. Trọn bữa nhà.</span></nav>
       </header>
 
       {/* Global Error Notice */}
@@ -150,7 +178,7 @@ function App() {
 
       {/* Mobile Bottom Navigation (Visible on viewport <= 768px) */}
       <nav className="mobile-nav" aria-label="Điều hướng điện thoại">
-        {navigation.map(({to, label, icon: Icon}) => (
+        {NAVIGATION.map(({to, label, icon: Icon}) => (
           <NavLink to={to} end={to === '/'} key={to}>
             <span>
               <Icon size={21} />
