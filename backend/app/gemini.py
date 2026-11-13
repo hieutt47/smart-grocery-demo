@@ -103,16 +103,16 @@ def discover_model_and_version(
                 if models:
                     logger.info("Discovered Gemini models via %s: %s", ver, models)
                     chosen = None
-                    if preferred in models:
+                    if "gemini-3.8-flash" in models:
+                        chosen = "gemini-3.8-flash"
+                    elif "gemini-flash-lite-latest" in models:
+                        chosen = "gemini-flash-lite-latest"
+                    elif "gemini-flash-latest" in models:
+                        chosen = "gemini-flash-latest"
+                    elif preferred in models:
                         chosen = preferred
-                    elif any(m.startswith(preferred) for m in models):
-                        chosen = next(m for m in models if m.startswith(preferred))
-                    elif any("2.5-flash" in m for m in models):
-                        chosen = next(m for m in models if "2.5-flash" in m)
-                    elif any("flash-latest" in m for m in models):
-                        chosen = next(m for m in models if "flash-latest" in m)
-                    elif any("2.0-flash" in m for m in models):
-                        chosen = next(m for m in models if "2.0-flash" in m)
+                    elif any("flash-lite" in m for m in models):
+                        chosen = next(m for m in models if "flash-lite" in m)
                     elif any("flash" in m for m in models):
                         chosen = next(m for m in models if "flash" in m)
                     elif any("gemini" in m for m in models):
@@ -165,10 +165,11 @@ def call_gemini(
             candidates.append((km, target_version))
 
     for alt_model in [
-        "gemini-2.5-flash",
+        "gemini-flash-lite-latest",
         "gemini-flash-latest",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-exp",
+        "gemini-3.8-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash",
     ]:
         for alt_ver in ["v1beta", "v1"]:
             if (alt_model, alt_ver) not in candidates:
