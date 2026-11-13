@@ -201,10 +201,8 @@ def create_app(database_url=None, clock=None):
         assistant_mode = "gemini" if gemini_key else "rules"
         gemini_status = None
         if assistant_mode == "gemini":
-            from .gemini import LAST_STATUS, ensure_discovery
+            from .gemini import LAST_STATUS
 
-            if LAST_STATUS.get("status") in {"init", "error"}:
-                ensure_discovery(gemini_key, os.getenv("GEMINI_MODEL", "gemini-2.0-flash"))
             gemini_status = LAST_STATUS
 
         return {
