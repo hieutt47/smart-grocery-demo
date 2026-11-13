@@ -7,10 +7,10 @@ All tasks retain original IDs and P0 priority. DONE LOCAL means implemented loca
 | T01 | Requirements register and decision mapping | - | DONE LOCAL: full traceability & decision mapping in docs/REQUIREMENTS_TRACEABILITY.md |
 | T02 | Repository, board, templates, milestones | T01 | DONE: remote GitHub repository connected & pushed (hieutt47/smart-grocery-demo) |
 | T03 | Architecture, ERD, API and three ADRs | T01 | DONE LOCAL |
-| T04 | Runtime, scaffold, health, Render free deploy | T03 | PARTIAL: repository ready; Render Blueprint import pending |
+| T04 | Runtime, scaffold, health, Render free deploy | T03 | DONE: Render free deployment live at https://bua-nha-demo-vx8c.onrender.com/ |
 | T05 | Flows, wireframes, tokens, prototype | T01 | DONE LOCAL: V2 design system implemented per docs/DESIGN.md, de-boxed layout, warm tokens, vector assets |
 | T06 | App shell, navigation, forms, UI states | T04,T05 | DONE LOCAL: App shell V2 with mobile bottom sticky actions, compact apartment grid, responsive navigation |
-| T07 | Lint, typecheck, tests, build, CI and locks | T04 | PARTIAL: local checks pass; hosted GitHub Actions CI triggered |
+| T07 | Lint, typecheck, tests, build, CI and locks | T04 | DONE: local checks & hosted GitHub Actions CI green (Demo CI run 43285085522) |
 | T08 | Schema, migration, session, 30 SKU/12 recipes/3 meals | T03,T04 | DONE LOCAL |
 | T09 | Catalog, search, detail, add | T06,T08 | DONE LOCAL: Catalog V2 with sticky categories, first-viewport 2-row grid, bespoke SVG icons |
 | T10 | Server cart, totals, versions, isolation | T09 | DONE LOCAL |
@@ -25,9 +25,9 @@ All tasks retain original IDs and P0 priority. DONE LOCAL means implemented loca
 | T19 | Clock simulation, polling, diagram, advance | T18 | DONE LOCAL |
 | T20 | History, reorder preview, erase and expiry | T11,T19 | DONE LOCAL |
 | T21 | Domain/API, assistant, fake clock and ownership tests | T14,T17,T20 | DONE LOCAL: 53 backend tests |
-| T22 | A/B E2E, mobile, two browsers, restart, refresh, online | T21 | PARTIAL: 14 local browser tests pass (7 chromium-mobile, 7 firefox-desktop); online pending |
+| T22 | A/B E2E, mobile, two browsers, restart, refresh, online | T21 | DONE: 14 local browser tests pass; live online smoke test verified on Render |
 | T23 | Stakeholder and two user trials, UX fixes | T22 | PARTIAL: initial positive visual feedback FB-001 in DEMO.md; independent A/B trials and two users pending |
-| T24 | Runbook, API, diagrams, video, notes and release tag | T23 | PARTIAL: local handoff; final release awaits online/UAT |
+| T24 | Runbook, API, diagrams, video, notes and release tag | T23 | PARTIAL: local & live deployment verified; user trials and release tag pending |
 
 Acceptance evidence: VALIDATION.md, backend/tests, frontend/e2e, artifacts screenshots and video. Original readme.md is authoritative. Brief mapping: T09-T11 sections 6.1/6.2/6.8; T12-T14 sections 6.4-6.6; T15-T17 sections 6.3/6.6/13; T18-T20 sections 6.7-6.9; T21-T24 sections 8/9/14.
 
