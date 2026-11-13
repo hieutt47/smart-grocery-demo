@@ -98,3 +98,56 @@ def test_allergy_uncertainty_persists(client):
     assert client.post("/api/v1/assistant/messages", json={"content": "100k cho 2 người"}).json()[
         "suggestions"
     ]
+
+
+def test_gemini_provider_fallback_on_error(system):
+    from unittest.mock import patch
+
+    from backend.app.gemini import GeminiProvider
+
+    app, _, _ = system
+    with app.state.factory.begin() as db:
+        provider = GeminiProvider(api_key="fake-key")
+        with patch("backend.app.gemini.call_gemini", return_value=None):
+            result = provider.recommend(db, "100k cho 2 người", {})
+            assert result["mode"] == "rules"
+            assert len(result["suggestions"]) > 0
+
+
+def test_gemini_provider_success(system):
+    from unittest.mock import patch
+
+    from backend.app.gemini import GeminiProvider
+
+    app, _, _ = system
+    mock_llm = {
+        "message": "Gợi ý bữa cơm ấm cúng cho 2 người với gà rang gừng thơm phức!",
+        "intent": "dish",
+        "selected_ids": ["ga-rang-gung"],
+        "servings": 2,
+        "budget": 100000,
+        "minutes": 30,
+        "excluded": [],
+        "lighter": False,
+    }
+    with app.state.factory.begin() as db:
+        provider = GeminiProvider(api_key="fake-key")
+        with patch("backend.app.gemini.call_gemini", return_value=mock_llm):
+            result = provider.recommend(db, "muốn nấu gà rang gừng cho 2 người", {})
+            assert result["mode"] == "gemini"
+            assert len(result["suggestions"]) == 1
+            assert result["suggestions"][0]["id"] == "ga-rang-gung"
+            assert result["suggestions"][0]["total"] > 0
+            assert "gà rang gừng" in result["message"]
+
+
+def test_gemini_provider_allergy_safety(system):
+    from backend.app.gemini import GeminiProvider
+
+    app, _, _ = system
+    with app.state.factory.begin() as db:
+        provider = GeminiProvider(api_key="fake-key")
+        result = provider.recommend(db, "tôi dị ứng tôm, ăn gì?", {})
+        assert result["mode"] == "gemini"
+        assert result["suggestions"] == []
+        assert "chưa đủ" in result["message"]

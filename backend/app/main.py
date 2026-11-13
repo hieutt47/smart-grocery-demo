@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import delete, select, text
 
-from .assistant import RuleBasedProvider
+from .assistant import get_recommendation_provider
 from .db import create_database
 from .domain import (
     OFFSETS,
@@ -197,7 +197,8 @@ def create_app(database_url=None, clock=None):
     @app.get("/api/v1/health")
     def health(db=Depends(database, scope="function")):
         db.execute(text("SELECT 1"))
-        return {"status": "ok", "version": "0.1.0", "assistant_mode": "rules", "demo": True}
+        assistant_mode = "gemini" if os.getenv("GEMINI_API_KEY") else "rules"
+        return {"status": "ok", "version": "0.1.0", "assistant_mode": assistant_mode, "demo": True}
 
     @app.post("/api/v1/sessions")
     def start_session(
@@ -461,7 +462,7 @@ def create_app(database_url=None, clock=None):
                     id=secrets.token_urlsafe(16), session_id=s.id, context={}, messages=[]
                 )
                 db.add(conversation)
-        result = RuleBasedProvider().recommend(db, body.content, conversation.context)
+        result = get_recommendation_provider().recommend(db, body.content, conversation.context)
         result["conversation_id"] = conversation.id
         conversation.context = result["context"]
         conversation.messages = (

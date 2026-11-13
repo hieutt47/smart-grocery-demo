@@ -143,7 +143,7 @@ export function Assistant() {
               <strong>Trợ lý Bữa Nhà</strong>
             </div>
             <p>
-              Gợi ý theo thuật toán quy tắc & dữ liệu mẫu (không gọi mô hình bên ngoài). Giữ nguyên ngữ cảnh khi đổi món.
+              Trợ lý AI gợi ý bữa ngon kết hợp kiểm tra nguyên liệu & giá mẫu thực tế từ hệ thống. Giữ nguyên ngữ cảnh khi đổi món.
             </p>
           </div>
 

@@ -14,3 +14,5 @@ services:
         value: sqlite:////app/data/grocery.db
       - key: ALLOWED_ORIGINS
         value: ""
+      - key: GEMINI_API_KEY
+        sync: false
