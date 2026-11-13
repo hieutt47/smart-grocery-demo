@@ -209,5 +209,5 @@ def get_recommendation_provider() -> RecommendationProvider:
     if gemini_key:
         from .gemini import GeminiProvider
 
-        return GeminiProvider(api_key=gemini_key, model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"))
+        return GeminiProvider(api_key=gemini_key, model=os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest"))
     return RuleBasedProvider()
