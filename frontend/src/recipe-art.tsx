@@ -271,24 +271,37 @@ function SaladDuaLeoArt({name, className, decorative}: ArtProps) {
   return (
     <ArtFrame bg="#f2f8f1" accent="#368940" name={name} className={className} decorative={decorative}>
       {/* Đĩa sứ phong cách Bắc Âu */}
-      <circle cx="180" cy="110" r="68" fill="#ffffff" stroke="#d5e6d3" strokeWidth="2" />
-      <circle cx="180" cy="110" r="56" fill="#eaf4e8" />
+      <circle cx="180" cy="110" r="70" fill="#ffffff" stroke="#d5e6d3" strokeWidth="2" />
+      <circle cx="180" cy="110" r="58" fill="#eaf4e8" />
       {/* Xà lách xoăn xanh mướt làm nền */}
-      <path d="M136 114c10-18 36-16 48-4s-8 26-26 22-26-4-22-18z" fill="#4fa458" opacity="0.85" />
-      <path d="M174 104c12-16 38-12 44 4s-14 24-28 18-18-8-16-22z" fill="#3c8e45" opacity="0.85" />
-      {/* Lát dưa leo giòn rụm cắt khoanh */}
-      <circle cx="156" cy="108" r="14" fill="#a4dfa7" stroke="#3b8d44" strokeWidth="2.5" />
-      <circle cx="156" cy="108" r="9" fill="#c4f0c7" />
-      <circle cx="186" cy="114" r="15" fill="#a4dfa7" stroke="#3b8d44" strokeWidth="2.5" />
-      <circle cx="186" cy="114" r="10" fill="#c4f0c7" />
-      {/* Cà chua bi bổ đôi đỏ mọng */}
-      <ellipse cx="170" cy="124" rx="11" ry="8" fill="#e2452c" />
-      <ellipse cx="170" cy="124" rx="8" ry="5.5" fill="#f16852" />
-      <ellipse cx="196" cy="98" rx="10" ry="7.5" fill="#e2452c" />
-      {/* Hạt tiêu đen xay nhuyễn và sốt dầu giấm bóng bẩy */}
-      <circle cx="164" cy="112" r="1.6" fill="#2b231d" />
-      <circle cx="178" cy="108" r="1.8" fill="#2b231d" />
-      <circle cx="188" cy="126" r="1.6" fill="#2b231d" />
+      <path d="M128 116c14-22 52-20 72-8s10 32-12 30-46-2-60-22z" fill="#4fa458" opacity="0.85" />
+      <path d="M165 92c20-14 46-6 50 16s-20 28-36 20-22-16-14-36z" fill="#3c8e45" opacity="0.8" />
+      <path d="M140 120c16-10 40-10 52 4s-14 20-30 16-24-8-22-20z" fill="#5db767" opacity="0.9" />
+      {/* Các lát dưa leo xếp so le tự nhiên */}
+      <g transform="translate(142, 96) rotate(-15)">
+        <ellipse cx="0" cy="0" rx="14" ry="10" fill="#a4dfa7" stroke="#3b8d44" strokeWidth="2" />
+        <ellipse cx="0" cy="0" rx="9" ry="6" fill="#c4f0c7" />
+      </g>
+      <g transform="translate(172, 92) rotate(20)">
+        <ellipse cx="0" cy="0" rx="15" ry="11" fill="#a4dfa7" stroke="#3b8d44" strokeWidth="2" />
+        <ellipse cx="0" cy="0" rx="10" ry="7" fill="#c4f0c7" />
+      </g>
+      <g transform="translate(198, 114) rotate(-25)">
+        <ellipse cx="0" cy="0" rx="14" ry="10" fill="#a4dfa7" stroke="#3b8d44" strokeWidth="2" />
+        <ellipse cx="0" cy="0" rx="9" ry="6" fill="#c4f0c7" />
+      </g>
+      <g transform="translate(150, 126) rotate(10)">
+        <ellipse cx="0" cy="0" rx="13" ry="9" fill="#a4dfa7" stroke="#3b8d44" strokeWidth="2" />
+        <ellipse cx="0" cy="0" rx="8" ry="5.5" fill="#c4f0c7" />
+      </g>
+      {/* Cà chua bi bổ đôi đỏ mọng rải rác */}
+      <path d="M160 110c6-12 18-8 18 4s-12 14-18-4z" fill="#e2452c" />
+      <path d="M182 120c4-10 16-6 16 6s-10 12-16-6z" fill="#e2452c" />
+      <path d="M136 104c8-10 18-4 16 8s-14 10-16-8z" fill="#e2452c" />
+      {/* Tiêu đen và sốt dầu giấm */}
+      <circle cx="162" cy="102" r="1.5" fill="#2b231d" />
+      <circle cx="176" cy="114" r="1.6" fill="#2b231d" />
+      <circle cx="188" cy="106" r="1.5" fill="#2b231d" />
     </ArtFrame>
   );
 }
