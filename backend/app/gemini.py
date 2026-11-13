@@ -49,7 +49,7 @@ chicken (Thịt gà), beef (Thịt bò), pork (Thịt heo), fish (Cá thu), shri
 Quy tắc phản hồi:
 1. Trả về định dạng JSON thuần túy (JSON object) theo đúng schema được yêu cầu.
 2. Giọng điệu thân thiện, chu đáo, hiểu tâm lý người nội trợ/người đi làm về bận rộn.
-3. Tuyệt đối không bịa ra món ăn hoặc sản phẩm ngoài danh mục trên.
+3. BẮT BUỘC dùng chính xác mã ID trong danh sách trên cho selected_ids (ví dụ: 'ga-rang-gung', 'bo-xao-ca-chua', 'bua-nhanh'), không tự dịch hay bịa món ngoài danh mục.
 4. Trích xuất chính xác:
    - servings: số người ăn (1 đến 6, giữ nguyên ngữ cảnh trước đó hoặc mặc định 2)
    - budget: ngân sách VND nếu có (ví dụ: "100k" -> 100000, "150 nghìn" -> 150000; null nếu không nhắc)
@@ -64,9 +64,9 @@ Quy tắc phản hồi:
 
 
 def call_gemini(
-    api_key: str, model: str, prompt: str, context: dict[str, Any], timeout: int = 8
+    api_key: str, model: str, prompt: str, context: dict[str, Any], timeout: int = 15
 ) -> dict[str, Any] | None:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    clean_key = api_key.strip().strip('"').strip("'")
     payload = {
         "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
         "contents": [
@@ -81,20 +81,59 @@ def call_gemini(
         ],
         "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
     }
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
-            return json.loads(text)
-    except Exception as e:
-        logger.warning("Gemini API call failed (%s): falling back to rule-based assistant", e)
-        return None
+    data = json.dumps(payload).encode("utf-8")
+    headers = {"Content-Type": "application/json", "User-Agent": "BuaNha-Demo/1.0"}
+
+    # Fallback cascade: try primary model, then gemini-1.5-flash
+    models = [model]
+    if model != "gemini-1.5-flash":
+        models.append("gemini-1.5-flash")
+
+    for m in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={clean_key}"
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                res_data = json.loads(resp.read().decode("utf-8"))
+                text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                return json.loads(text)
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="ignore")
+            logger.warning("Gemini API (%s) HTTPError %d: %s", m, e.code, err_body)
+            continue
+        except Exception as e:
+            logger.warning("Gemini API (%s) failed (%s)", m, e)
+            continue
+
+    return None
+
+
+def resolve_recipe(db, raw_key: str) -> Recipe | None:
+    key = str(raw_key).strip()
+    r = db.get(Recipe, key)
+    if r:
+        return r
+    norm = normalize(key)
+    all_recipes = list(db.scalars(select(Recipe)))
+    for candidate in all_recipes:
+        if candidate.id == norm or normalize(candidate.name) == norm:
+            return candidate
+    for candidate in all_recipes:
+        cand_norm = normalize(candidate.name)
+        if norm in cand_norm or cand_norm in norm:
+            return candidate
+    return None
+
+
+def resolve_meal(raw_key: str) -> dict[str, Any] | None:
+    key = str(raw_key).strip()
+    norm = normalize(key)
+    for m in MEALS:
+        if m["id"] == key or m["id"] == norm or normalize(m["name"]) == norm:
+            return m
+        if norm in normalize(m["name"]):
+            return m
+    return None
 
 
 class GeminiProvider:
@@ -148,9 +187,11 @@ class GeminiProvider:
 
         exclusions = set(ctx["excluded"])
         intent = llm_data.get("intent", "dish")
+        ai_message = llm_data.get("message", "").strip()
+
         result = {
             "mode": "gemini",
-            "message": llm_data.get("message", "Dưới đây là gợi ý phù hợp cho bạn:"),
+            "message": ai_message or "Dưới đây là gợi ý bữa cơm nhà vừa vặn nhất cho bạn:",
             "suggestions": [],
             "products": [],
             "context": ctx,
@@ -159,8 +200,8 @@ class GeminiProvider:
         # Intent: direct raw products
         if intent == "products" and llm_data.get("selected_product_ids"):
             products = []
-            for pid in llm_data["selected_product_ids"]:
-                p = db.get(Product, pid)
+            for raw_pid in llm_data["selected_product_ids"]:
+                p = db.get(Product, str(raw_pid).strip())
                 if p and p.available and p.id not in exclusions:
                     products.append(product_data(p))
             if products:
@@ -169,26 +210,23 @@ class GeminiProvider:
 
         # Intent: dish / meal suggestions
         selected_ids = llm_data.get("selected_ids", [])
-        if not isinstance(selected_ids, list) or not selected_ids:
-            # Fall back to RuleBased if Gemini didn't return any IDs
-            return self.fallback.recommend(db, content, context)
-
-        meal_map = {m["id"]: m for m in MEALS}
         changing = "doi" in text or "khong thich" in text or "mon khac" in text
 
-        for item_id in selected_ids:
-            if changing and item_id in ctx.get("shown", []):
-                continue
-
-            if item_id in meal_map:
-                m = meal_map[item_id]
-                key, title = m["id"], m["name"]
-                dishes = [db.get(Recipe, rid) for rid in m["recipe_ids"] if db.get(Recipe, rid)]
-            else:
-                r = db.get(Recipe, item_id)
-                if not r:
+        for raw_id in selected_ids:
+            meal = resolve_meal(raw_id)
+            if meal:
+                key, title = meal["id"], meal["name"]
+                if changing and key in ctx.get("shown", []):
                     continue
-                key, title, dishes = r.id, r.name, [r]
+                dishes = [db.get(Recipe, rid) for rid in meal["recipe_ids"] if db.get(Recipe, rid)]
+            else:
+                recipe = resolve_recipe(db, raw_id)
+                if not recipe:
+                    continue
+                key, title = recipe.id, recipe.name
+                if changing and key in ctx.get("shown", []):
+                    continue
+                dishes = [recipe]
 
             duration = sum(d.minutes for d in dishes)
             if ctx["minutes"] is not None and duration > ctx["minutes"]:
@@ -240,7 +278,11 @@ class GeminiProvider:
                 dict.fromkeys(ctx.get("shown", []) + [s["id"] for s in result["suggestions"]])
             )[-30:]
         else:
-            # If Gemini's suggestions were filtered out by budget or missing items, run fallback
-            return self.fallback.recommend(db, content, context)
+            # If candidate items could not satisfy constraints, get rule suggestions while keeping Gemini message
+            fallback_res = self.fallback.recommend(db, content, context)
+            result["suggestions"] = fallback_res["suggestions"]
+            result["products"] = fallback_res["products"]
+            if not result["message"]:
+                result["message"] = fallback_res["message"]
 
         return result
