@@ -65,10 +65,82 @@ Quy tắc phản hồi:
 """
 
 
+DISCOVERED_CONFIG: dict[str, Any] = {"model": None, "version": None}
+
+
+def discover_model_and_version(
+    api_key: str, preferred: str = "gemini-2.0-flash", timeout: int = 8
+) -> tuple[str, str] | None:
+    clean_key = api_key.strip().strip('"').strip("'")
+    if not clean_key:
+        return None
+    for ver in ["v1beta", "v1"]:
+        url = f"https://generativelanguage.googleapis.com/{ver}/models?key={clean_key}"
+        req = urllib.request.Request(url, headers={"User-Agent": "BuaNha-Demo/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                models = [
+                    m["name"].removeprefix("models/")
+                    for m in data.get("models", [])
+                    if "generateContent" in m.get("supportedGenerationMethods", [])
+                ]
+                if models:
+                    logger.info("Discovered Gemini models via %s: %s", ver, models)
+                    chosen = None
+                    if preferred in models:
+                        chosen = preferred
+                    elif any(m.startswith(preferred) for m in models):
+                        chosen = next(m for m in models if m.startswith(preferred))
+                    elif any("2.0-flash" in m for m in models):
+                        chosen = next(m for m in models if "2.0-flash" in m)
+                    elif any("1.5-flash" in m for m in models):
+                        chosen = next(m for m in models if "1.5-flash" in m)
+                    elif any("flash" in m for m in models):
+                        chosen = next(m for m in models if "flash" in m)
+                    elif any("gemini" in m for m in models):
+                        chosen = next(m for m in models if "gemini" in m)
+                    else:
+                        chosen = models[0]
+
+                    DISCOVERED_CONFIG.update({"model": chosen, "version": ver})
+                    LAST_STATUS.update(
+                        {
+                            "status": "ready",
+                            "model": chosen,
+                            "version": ver,
+                            "available_models": models[:12],
+                            "error": None,
+                        }
+                    )
+                    return chosen, ver
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="ignore")
+            logger.warning("Discover models (%s) HTTPError %d: %s", ver, e.code, err_body)
+            LAST_STATUS.update({"status": "error", "code": e.code, "error": err_body[:300]})
+        except Exception as e:
+            logger.warning("Discover models (%s) failed: %s", ver, e)
+            LAST_STATUS.update({"status": "error", "error": str(e)[:300]})
+    return None
+
+
+def ensure_discovery(api_key: str, preferred: str = "gemini-2.0-flash") -> tuple[str, str] | None:
+    if DISCOVERED_CONFIG.get("model") and DISCOVERED_CONFIG.get("version"):
+        return DISCOVERED_CONFIG["model"], DISCOVERED_CONFIG["version"]
+    return discover_model_and_version(api_key, preferred)
+
+
 def call_gemini(
     api_key: str, model: str, prompt: str, context: dict[str, Any], timeout: int = 15
 ) -> dict[str, Any] | None:
     clean_key = api_key.strip().strip('"').strip("'")
+    if not clean_key:
+        return None
+
+    discovered = ensure_discovery(clean_key, model)
+    target_model = discovered[0] if discovered else model
+    target_version = discovered[1] if discovered else "v1beta"
+
     payload = {
         "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
         "contents": [
@@ -86,28 +158,38 @@ def call_gemini(
     data = json.dumps(payload).encode("utf-8")
     headers = {"Content-Type": "application/json", "User-Agent": "BuaNha-Demo/1.0"}
 
-    # Fallback cascade: try primary model, then gemini-1.5-flash
-    models = [model]
-    if model != "gemini-1.5-flash":
-        models.append("gemini-1.5-flash")
+    candidates = [(target_model, target_version)]
+    for alt_model in [
+        "gemini-2.0-flash-exp",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-002",
+        "gemini-1.5-flash-001",
+        "gemini-1.5-pro-latest",
+    ]:
+        for alt_ver in ["v1beta", "v1"]:
+            if (alt_model, alt_ver) not in candidates:
+                candidates.append((alt_model, alt_ver))
 
-    for m in models:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={clean_key}"
+    for m, ver in candidates:
+        url = f"https://generativelanguage.googleapis.com/{ver}/models/{m}:generateContent?key={clean_key}"
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 res_data = json.loads(resp.read().decode("utf-8"))
                 text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-                LAST_STATUS.update({"status": "ok", "model": m, "error": None})
+                LAST_STATUS.update({"status": "ok", "model": m, "version": ver, "error": None})
                 return json.loads(text)
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="ignore")
-            logger.warning("Gemini API (%s) HTTPError %d: %s", m, e.code, err_body)
-            LAST_STATUS.update({"status": "error", "model": m, "code": e.code, "error": err_body[:300]})
+            logger.warning("Gemini API (%s/%s) HTTPError %d: %s", ver, m, e.code, err_body)
+            LAST_STATUS.update(
+                {"status": "error", "model": m, "version": ver, "code": e.code, "error": err_body[:300]}
+            )
             continue
         except Exception as e:
-            logger.warning("Gemini API (%s) failed (%s)", m, e)
-            LAST_STATUS.update({"status": "error", "model": m, "error": str(e)[:300]})
+            logger.warning("Gemini API (%s/%s) failed (%s)", ver, m, e)
+            LAST_STATUS.update({"status": "error", "model": m, "version": ver, "error": str(e)[:300]})
             continue
 
     return None

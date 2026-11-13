@@ -197,14 +197,21 @@ def create_app(database_url=None, clock=None):
     @app.get("/api/v1/health")
     def health(db=Depends(database, scope="function")):
         db.execute(text("SELECT 1"))
-        assistant_mode = "gemini" if os.getenv("GEMINI_API_KEY") else "rules"
-        from .gemini import LAST_STATUS
+        gemini_key = os.getenv("GEMINI_API_KEY")
+        assistant_mode = "gemini" if gemini_key else "rules"
+        gemini_status = None
+        if assistant_mode == "gemini":
+            from .gemini import LAST_STATUS, ensure_discovery
+
+            if LAST_STATUS.get("status") in {"init", "error"}:
+                ensure_discovery(gemini_key, os.getenv("GEMINI_MODEL", "gemini-2.0-flash"))
+            gemini_status = LAST_STATUS
 
         return {
             "status": "ok",
             "version": "0.1.0",
             "assistant_mode": assistant_mode,
-            "gemini_status": LAST_STATUS if assistant_mode == "gemini" else None,
+            "gemini_status": gemini_status,
             "demo": True,
         }
 
