@@ -3,7 +3,8 @@ import {Link} from 'react-router-dom';
 import {ArrowRight, Bot, Clock3, RotateCcw, Send, Sparkles, Store} from 'lucide-react';
 import {api, money} from '../api';
 import {useResource, useStore} from '../context';
-import {LoadState, PageTitle, ProductCard} from '../components';
+import {LoadState, PageTitle, PantryModal, ProductCard} from '../components';
+import {getPantryStaples, subscribePantry} from '../pantry';
 import {RecipeVisual} from '../recipe-art';
 import type {AssistantResult, ChatMessage, Conversation} from '../types';
 
@@ -21,8 +22,12 @@ export function Assistant() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [showPantry, setShowPantry] = useState(false);
+  const [pantryIds, setPantryIds] = useState<string[]>(getPantryStaples());
   const {ready} = useStore();
   const bottom = useRef<HTMLDivElement>(null);
+
+  useEffect(() => subscribePantry(setPantryIds), []);
 
   useEffect(() => {
     if (resource.data) {
@@ -44,7 +49,8 @@ export function Assistant() {
     try {
       const result = await api<AssistantResult>('/assistant/messages', 'POST', {
         content,
-        conversation_id: conversationId
+        conversation_id: conversationId,
+        pantry: pantryIds
       });
       setMessages(prev => [...prev, {role: 'user', content}, {role: 'assistant', result}]);
       setConversationId(result.conversation_id);
@@ -154,16 +160,28 @@ export function Assistant() {
               <Sparkles size={16} className="text-emerald" aria-hidden="true" />
               <strong>Cùng lên thực đơn gia đình</strong>
             </div>
-            <button
-              type="button"
-              className="icon-button chat-reset-btn"
-              onClick={() => void reset()}
-              disabled={sending || resource.loading || !messages.length}
-              aria-label="Làm mới cuộc trò chuyện"
-              title="Làm mới cuộc trò chuyện"
-            >
-              <RotateCcw size={16} aria-hidden="true" />
-            </button>
+            <div className="chat-header-actions">
+              <button
+                type="button"
+                className="chip pantry-pill-btn"
+                onClick={() => setShowPantry(true)}
+                title="Tùy chỉnh các gia vị đã có sẵn trong bếp"
+                aria-label="Tủ gia vị nhà mình"
+              >
+                <Sparkles size={13} className="text-emerald" aria-hidden="true" />
+                <span>Gia vị ({pantryIds.length})</span>
+              </button>
+              <button
+                type="button"
+                className="icon-button chat-reset-btn"
+                onClick={() => void reset()}
+                disabled={sending || resource.loading || !messages.length}
+                aria-label="Làm mới cuộc trò chuyện"
+                title="Làm mới cuộc trò chuyện"
+              >
+                <RotateCcw size={16} aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
           <LoadState {...resource} />
@@ -327,6 +345,8 @@ export function Assistant() {
           </p>
         </section>
       </div>
+
+      <PantryModal open={showPantry} onClose={() => setShowPantry(false)} />
     </>
   );
 }

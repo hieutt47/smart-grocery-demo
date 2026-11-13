@@ -56,6 +56,7 @@ class OrderInput(Input):
 class AssistantInput(Input):
     content: str = Field(min_length=1, max_length=500)
     conversation_id: str | None = Field(default=None, max_length=80)
+    pantry: list[str] = Field(default_factory=list, max_length=30)
 
 
 class AdvanceInput(Input):
