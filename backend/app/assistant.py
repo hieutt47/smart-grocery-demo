@@ -87,7 +87,15 @@ class RuleBasedProvider:
                 else "Mình chưa tìm thấy sản phẩm đó. Bạn thử tên như thịt bò, cà chua hoặc trứng nhé."
             )
             return result
-        recipes = list(db.scalars(select(Recipe).order_by(Recipe.minutes, Recipe.id)))
+
+        def recipe_priority(r):
+            is_main = any(t in ["món mặn", "bò", "gà", "heo", "cá"] for t in r.tags)
+            is_salad = r.id == "salad-dua-leo"
+            if "salad" in text or "song" in text:
+                return (0 if is_salad else 1, r.minutes, r.id)
+            return (0 if is_main else 2 if is_salad else 1, r.minutes, r.id)
+
+        recipes = sorted(db.scalars(select(Recipe)), key=recipe_priority)
         changing = "doi" in text or "khong thich" in text or "mon khac" in text
         direct = next((r for r in recipes if contains(text, normalize(r.name))), None)
         if direct:

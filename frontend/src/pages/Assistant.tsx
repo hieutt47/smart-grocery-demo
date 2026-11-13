@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {Link} from 'react-router-dom';
-import {ArrowRight, Bot, Clock3, RotateCcw, Send, Sparkles, Store, Users} from 'lucide-react';
+import {ArrowRight, Bot, Clock3, RotateCcw, Send, Sparkles, Store} from 'lucide-react';
 import {api, money} from '../api';
 import {useResource, useStore} from '../context';
 import {LoadState, PageTitle, ProductCard} from '../components';
@@ -98,14 +98,6 @@ export function Assistant() {
             <span>{p.label}</span>
           </button>
         ))}
-      </div>
-
-      <div className="assistant-mobile-sublink">
-        <Link to="/products" className="text-link">
-          <Store size={15} aria-hidden="true" />
-          <span>Mình muốn tự đi chợ chọn hàng</span>
-          <ArrowRight size={14} aria-hidden="true" />
-        </Link>
       </div>
 
       <div className="assistant-layout">
@@ -206,55 +198,41 @@ export function Assistant() {
 
                     {m.result.suggestions.map(s => (
                       <article className="suggestion-card" key={s.id}>
-                        {/* Họa tiết món ăn vector minh họa chân thực */}
-                        {s.recipes && s.recipes.length > 0 && (
-                          <div className={`suggestion-art-wrap ${s.recipes.length > 1 ? 'multi' : 'single'}`}>
-                            {s.recipes.map(r => (
-                              <div className="suggestion-art-item" key={r.id}>
-                                <RecipeVisual recipe={r} className="suggestion-art-visual" decorative={true} />
-                                {s.recipes.length > 1 && (
-                                  <span className="suggestion-art-title">{r.name}</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        <div className="suggestion-body">
-                          <div className="suggestion-title">
-                            <div className="suggestion-meta">
-                              <h3>{s.name}</h3>
-                              <span className="suggestion-specs small muted">
-                                <Users size={13} className="inline-icon" aria-hidden="true" />
-                                <span>{s.servings} người</span>
-                                <Clock3 size={13} className="inline-icon ml-2" aria-hidden="true" />
-                                <span>{s.minutes} phút</span>
-                              </span>
-                            </div>
-                          </div>
-
-                          {s.recipes.length > 1 && (
-                            <p className="suggestion-recipes-list small">
-                              <strong>Mâm cơm gồm: </strong>
-                              {s.recipes.map(r => r.name).join(' · ')}
-                            </p>
+                        <div className="suggestion-thumb">
+                          {s.recipes && s.recipes.length > 0 && (
+                            <RecipeVisual recipe={s.recipes[0]} className="suggestion-thumb-art" decorative={true} />
                           )}
+                          {s.recipes.length > 1 && (
+                            <span className="suggestion-combo-badge">Combo {s.recipes.length} món</span>
+                          )}
+                        </div>
 
-                          <p className="suggestion-reason small muted">{s.reason}</p>
+                        <div className="suggestion-info">
+                          <div className="suggestion-header-row">
+                            <h3 className="suggestion-title">{s.name}</h3>
+                            <span className="suggestion-time-badge">
+                              <Clock3 size={11} aria-hidden="true" />
+                              <span>{s.minutes}p</span>
+                            </span>
+                          </div>
 
-                          <div className="suggestion-footer">
-                            <div className="suggestion-price-stack">
-                              <span className="small muted">Chi phí nguyên liệu dự kiến</span>
-                              <strong className="suggestion-price">{money(s.total)}</strong>
-                            </div>
+                          <p className="suggestion-summary">
+                            {s.recipes.length > 1
+                              ? `Mâm cơm: ${s.recipes.map(r => r.name).join(' · ')}`
+                              : `${s.servings} người · ${s.recipes[0]?.tags?.join(' · ') || 'Món ngon cơm nhà'}`}
+                          </p>
+
+                          <div className="suggestion-footer-row">
+                            <strong className="suggestion-price">{money(s.total)}</strong>
                             <Link
-                              className="button primary small-button"
+                              className="button primary small-button suggestion-btn"
                               to={`/cook?ids=${s.recipes.map(r => r.id).join(',')}&servings=${s.servings}${
                                 s.selections.some(x => x.variant_id) ? '&lighter=1' : ''
                               }`}
+                              aria-label="Chọn món này"
                             >
                               <span>Chọn món này</span>
-                              <ArrowRight size={14} aria-hidden="true" />
+                              <ArrowRight size={13} aria-hidden="true" />
                             </Link>
                           </div>
                         </div>
