@@ -21,6 +21,8 @@ from .seed import MEALS
 
 logger = logging.getLogger("grocery.gemini")
 
+LAST_STATUS: dict[str, Any] = {"status": "init", "error": None}
+
 SYSTEM_INSTRUCTION = """Bạn là trợ lý tư vấn món ăn thông minh của Bữa Nhà (AI Smart Grocery & Robot Delivery).
 Nhiệm vụ của bạn là lắng nghe nhu cầu bữa ăn của cư dân chung cư bằng tiếng Việt tự nhiên và gợi ý món ăn phù hợp nhất từ danh mục món ăn và sản phẩm có sẵn trong cửa hàng.
 
@@ -96,13 +98,16 @@ def call_gemini(
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 res_data = json.loads(resp.read().decode("utf-8"))
                 text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                LAST_STATUS.update({"status": "ok", "model": m, "error": None})
                 return json.loads(text)
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="ignore")
             logger.warning("Gemini API (%s) HTTPError %d: %s", m, e.code, err_body)
+            LAST_STATUS.update({"status": "error", "model": m, "code": e.code, "error": err_body[:300]})
             continue
         except Exception as e:
             logger.warning("Gemini API (%s) failed (%s)", m, e)
+            LAST_STATUS.update({"status": "error", "model": m, "error": str(e)[:300]})
             continue
 
     return None
@@ -169,7 +174,10 @@ class GeminiProvider:
         # Call Gemini model
         llm_data = call_gemini(self.api_key, self.model, content, ctx)
         if not llm_data:
-            return self.fallback.recommend(db, content, context)
+            res = self.fallback.recommend(db, content, context)
+            if LAST_STATUS.get("error"):
+                res["gemini_error"] = LAST_STATUS["error"]
+            return res
 
         # Parse extracted constraints
         if isinstance(llm_data.get("servings"), int) and 1 <= llm_data["servings"] <= 6:

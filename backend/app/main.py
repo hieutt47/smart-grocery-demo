@@ -198,7 +198,15 @@ def create_app(database_url=None, clock=None):
     def health(db=Depends(database, scope="function")):
         db.execute(text("SELECT 1"))
         assistant_mode = "gemini" if os.getenv("GEMINI_API_KEY") else "rules"
-        return {"status": "ok", "version": "0.1.0", "assistant_mode": assistant_mode, "demo": True}
+        from .gemini import LAST_STATUS
+
+        return {
+            "status": "ok",
+            "version": "0.1.0",
+            "assistant_mode": assistant_mode,
+            "gemini_status": LAST_STATUS if assistant_mode == "gemini" else None,
+            "demo": True,
+        }
 
     @app.post("/api/v1/sessions")
     def start_session(
