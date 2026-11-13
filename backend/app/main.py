@@ -477,6 +477,8 @@ def create_app(database_url=None, clock=None):
                     id=secrets.token_urlsafe(16), session_id=s.id, context={}, messages=[]
                 )
                 db.add(conversation)
+        if body.pantry:
+            conversation.context = {**conversation.context, "pantry": body.pantry}
         result = get_recommendation_provider().recommend(db, body.content, conversation.context)
         result["conversation_id"] = conversation.id
         conversation.context = result["context"]

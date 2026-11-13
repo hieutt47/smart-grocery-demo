@@ -1,9 +1,10 @@
 import {useEffect, useState} from 'react';
 import {Link, useNavigate, useSearchParams} from 'react-router-dom';
-import {ArrowLeft, ArrowRight, ChefHat, Clock3, Info, ShoppingBasket, Users, UtensilsCrossed, X} from 'lucide-react';
+import {ArrowLeft, ArrowRight, ChefHat, Clock3, Info, ShoppingBasket, Sparkles, Users, UtensilsCrossed, X} from 'lucide-react';
 import {api, money} from '../api';
 import {useStore} from '../context';
-import {LoadState, Quantity} from '../components';
+import {LoadState, PantryModal, Quantity} from '../components';
+import {getPantryStaples, isStaple, subscribePantry} from '../pantry';
 import {RecipeVisual} from '../recipe-art';
 import type {Cart, Quote, Recipe, Selection} from '../types';
 
@@ -22,9 +23,13 @@ export function Cook() {
   const [quoteError, setQuoteError] = useState('');
   const [recipeRevision, setRecipeRevision] = useState(0);
   const [quoteRevision, setQuoteRevision] = useState(0);
+  const [showPantry, setShowPantry] = useState(false);
+  const [pantryIds, setPantryIds] = useState<string[]>(getPantryStaples());
   const {cart, setCart, act, busy} = useStore();
   const navigate = useNavigate();
   const lighter = params.get('lighter') === '1';
+
+  useEffect(() => subscribePantry(setPantryIds), []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -104,6 +109,28 @@ export function Cook() {
       navigate('/cart');
     }
   }
+
+  async function addFruit(productId: string, productName: string) {
+    const result = await act(
+      () =>
+        api<Cart>('/cart', 'PATCH', {
+          items: [{product_id: productId, quantity: 1}],
+          mode: 'add',
+          expected_version: cart.version
+        }),
+      `Đã thêm ${productName} vào giỏ hàng`
+    );
+    if (result) setCart(result);
+  }
+
+  // Calculate staples present in recipe but NOT selected (saved money)
+  const unselectedStaples = recipes.flatMap(r =>
+    (r.ingredients || []).filter(
+      i => isStaple(i.id) && pantryIds.includes(i.id) && !(selected[r.id] || []).includes(i.id)
+    )
+  );
+  const savedStapleCount = new Set(unselectedStaples.map(i => i.id)).size;
+  const savedEstimate = savedStapleCount * 12000;
 
   const isSingle = recipes.length === 1;
 
@@ -215,25 +242,37 @@ export function Cook() {
                           <h3>Nguyên liệu cần cho {servings} người</h3>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        className="text-button"
-                        onClick={() => {
-                          setSelected(prev => {
-                            const current = prev[r.id] || [];
-                            const allIds = (r.ingredients || []).map(i => i.id);
-                            const isAllSelected = allIds.length > 0 && current.length === allIds.length;
-                            return {
-                              ...prev,
-                              [r.id]: isAllSelected ? [] : allIds
-                            };
-                          });
-                        }}
-                      >
-                        {(selected[r.id]?.length === r.ingredients?.length && (r.ingredients?.length || 0) > 0)
-                          ? 'Bỏ chọn tất cả'
-                          : 'Chọn tất cả nguyên liệu'}
-                      </button>
+                      <div className="ingredient-actions-row">
+                        <button
+                          type="button"
+                          className="chip pantry-pill-btn"
+                          onClick={() => setShowPantry(true)}
+                          aria-label="Tủ gia vị nhà mình"
+                          title="Tùy chỉnh các gia vị đã có sẵn trong bếp"
+                        >
+                          <Sparkles size={13} className="text-emerald" aria-hidden="true" />
+                          <span>Tủ gia vị ({pantryIds.length})</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => {
+                            setSelected(prev => {
+                              const current = prev[r.id] || [];
+                              const allIds = (r.ingredients || []).map(i => i.id);
+                              const isAllSelected = allIds.length > 0 && current.length === allIds.length;
+                              return {
+                                ...prev,
+                                [r.id]: isAllSelected ? [] : allIds
+                              };
+                            });
+                          }}
+                        >
+                          {(selected[r.id]?.length === r.ingredients?.length && (r.ingredients?.length || 0) > 0)
+                            ? 'Bỏ chọn tất cả'
+                            : 'Chọn tất cả nguyên liệu'}
+                        </button>
+                      </div>
                     </div>
 
                     {r.variants && r.variants.length > 0 && (
@@ -264,16 +303,22 @@ export function Cook() {
                         const factor = variants[r.id] && ['salt', 'fish-sauce', 'soy-sauce'].includes(i.id) ? 0.5 : 1;
                         const amount = (i.quantity * servings / r.servings) * factor;
                         const isChecked = selected[r.id]?.includes(i.id) || false;
+                        const isStapleItem = isStaple(i.id) && pantryIds.includes(i.id);
 
                         return (
-                          <label className={`ingredient-item ${isChecked ? 'selected' : ''}`} key={i.id}>
+                          <label className={`ingredient-item ${isChecked ? 'selected' : ''} ${isStapleItem ? 'is-staple' : ''}`} key={i.id}>
                             <input
                               type="checkbox"
                               name={`${r.id}-${i.id}`}
                               checked={isChecked}
                               onChange={() => toggle(r.id, i.id)}
                             />
-                            <span className="ingredient-name">{i.name}</span>
+                            <span className="ingredient-name">
+                              <span>{i.name}</span>
+                              {isStapleItem && (
+                                <span className="staple-badge">Đã có ở nhà</span>
+                              )}
+                            </span>
                             <strong className="ingredient-amount">
                               {Number(amount.toFixed(2))} {i.unit}
                             </strong>
@@ -377,6 +422,38 @@ export function Cook() {
                 <ArrowRight size={17} aria-hidden="true" />
               </button>
 
+              {savedStapleCount > 0 && quote && quote.items.length > 0 && (
+                <div className="pantry-savings-card">
+                  <div className="pantry-savings-header">
+                    <Sparkles size={15} className="text-emerald" aria-hidden="true" />
+                    <strong>Tiết kiệm ~{money(savedEstimate)} tiền gia vị</strong>
+                  </div>
+                  <p className="small muted">
+                    Bếp nhà mình đã có sẵn mắm muối dầu ăn. Thêm hoa quả tươi tráng miệng nhé?
+                  </p>
+                  <div className="cross-sell-chips">
+                    <button
+                      type="button"
+                      className="cross-sell-btn"
+                      disabled={busy}
+                      onClick={() => void addFruit('banana', 'Chuối')}
+                      aria-label="Thêm Chuối tráng miệng"
+                    >
+                      <span>+ 🍌 Chuối (18.000 ₫)</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="cross-sell-btn"
+                      disabled={busy}
+                      onClick={() => void addFruit('orange', 'Cam')}
+                      aria-label="Thêm Cam tươi tráng miệng"
+                    >
+                      <span>+ 🍊 Cam tươi (25.000 ₫)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <p className="small muted center mt-2">
                 Giá minh họa · Bạn có thể tùy chỉnh lại số lượng trong giỏ hàng
               </p>
@@ -401,6 +478,8 @@ export function Cook() {
               </button>
             </div>
           )}
+
+          <PantryModal open={showPantry} onClose={() => setShowPantry(false)} />
         </>
       )}
     </>

@@ -62,6 +62,7 @@ Quy tắc phản hồi:
    - selected_product_ids: danh sách mã sản phẩm nếu khách muốn mua lẻ (ví dụ ["beef", "tomato"])
    - lighter: boolean (true nếu khách yêu cầu nêm nhạt, ít mặn, thanh đạm hơn)
    - message: lời nhắn tiếng Việt tự nhiên, ấm áp gửi đến người dùng, giải thích ngắn gọn tại sao món này lại hợp với mong muốn của họ.
+5. Nếu trong ngữ cảnh có `pantry` (danh sách gia vị/nguyên liệu khách đã có sẵn ở nhà như dầu ăn, nước mắm, muối, đường...), hãy lưu ý điều này và nhắn nhủ rằng khách chỉ cần mua các nguyên liệu chính còn thiếu, giúp tiết kiệm chi phí!
 """
 
 

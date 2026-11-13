@@ -5,6 +5,7 @@ import {
   Banana,
   Beef,
   Carrot,
+  Check,
   Citrus,
   Clock3,
   Drumstick,
@@ -18,14 +19,17 @@ import {
   Salad,
   Shell,
   ShoppingBasket,
+  Sparkles,
   Sprout,
   Users,
-  Wheat
+  Wheat,
+  X
 } from 'lucide-react';
-import type {ComponentType} from 'react';
+import {useState, useEffect, type ComponentType} from 'react';
 import {Link} from 'react-router-dom';
 import {money} from './api';
 import {useStore} from './context';
+import {getPantryStaples, savePantryStaples, STAPLE_DEFINITIONS} from './pantry';
 import {RecipeVisual} from './recipe-art';
 import {
   CucumberIcon,
@@ -194,3 +198,82 @@ export function PageTitle({eyebrow, title, description}: {eyebrow?: string; titl
 export function DemoNote() {
   return <p className="demo-note-box"><Leaf size={16} aria-hidden="true" /><span>Dữ liệu và giao hàng mô phỏng. Không thu tiền thật.</span></p>;
 }
+
+export function PantryModal({open, onClose}: {open: boolean; onClose: () => void}) {
+  const [staples, setStaples] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      setStaples(getPantryStaples());
+    }
+  }, [open]);
+
+  if (!open) return null;
+
+  function toggle(id: string) {
+    const next = staples.includes(id) ? staples.filter(x => x !== id) : [...staples, id];
+    setStaples(next);
+    savePantryStaples(next);
+  }
+
+  function toggleAll() {
+    const next = staples.length === STAPLE_DEFINITIONS.length ? [] : STAPLE_DEFINITIONS.map(s => s.id);
+    setStaples(next);
+    savePantryStaples(next);
+  }
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Tủ gia vị nhà mình">
+      <div className="pantry-modal">
+        <div className="pantry-modal-header">
+          <div className="flex-row items-center gap-2">
+            <span className="pantry-modal-badge" aria-hidden="true"><Sparkles size={18} /></span>
+            <div>
+              <h2>Tủ gia vị nhà mình</h2>
+              <span className="small muted">Ghi nhớ gia vị bạn luôn có sẵn</span>
+            </div>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Đóng">
+            <X size={20} aria-hidden="true" />
+          </button>
+        </div>
+
+        <p className="pantry-modal-desc small muted">
+          Đánh dấu những món bếp nhà bạn <strong>luôn có sẵn</strong>. Trợ lý AI và công thức sẽ tự động bỏ qua để bạn không phải mua thừa!
+        </p>
+
+        <div className="pantry-staples-grid">
+          {STAPLE_DEFINITIONS.map(s => {
+            const hasIt = staples.includes(s.id);
+            return (
+              <button
+                type="button"
+                key={s.id}
+                className={`pantry-staple-btn ${hasIt ? 'active' : ''}`}
+                onClick={() => toggle(s.id)}
+                aria-pressed={hasIt}
+              >
+                <span className="pantry-staple-emoji" aria-hidden="true">{s.emoji}</span>
+                <span className="pantry-staple-name">{s.name}</span>
+                <span className={`pantry-staple-check ${hasIt ? 'checked' : ''}`}>
+                  {hasIt ? <Check size={13} aria-hidden="true" /> : <Plus size={13} aria-hidden="true" />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="pantry-modal-footer">
+          <button type="button" className="text-button" onClick={toggleAll}>
+            {staples.length === STAPLE_DEFINITIONS.length ? 'Bỏ chọn hết' : 'Có đủ các món này'}
+          </button>
+          <button type="button" className="button primary small-button" onClick={onClose}>
+            <span>Đã ghi nhớ ({staples.length} món)</span>
+            <Check size={15} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
