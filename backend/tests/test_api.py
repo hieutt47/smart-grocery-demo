@@ -15,14 +15,14 @@ from backend.tests.conftest import add, order_body, place, quote_order
 def test_seed_and_public_access(system):
     app, c, _ = system
     c.cookies.clear()
-    assert len(c.get("/api/v1/products").json()) == 30
-    assert len(c.get("/api/v1/recipes").json()) == 12
-    assert len(c.get("/api/v1/meals").json()) == 3
+    assert len(c.get("/api/v1/products").json()) == 36
+    assert len(c.get("/api/v1/recipes").json()) == 22
+    assert len(c.get("/api/v1/meals").json()) == 6
     assert c.get("/api/v1/health").json()["assistant_mode"] == "rules"
     assert c.get("/api/v1/cart").status_code == 401
     with app.state.factory.begin() as db:
         seed(db)
-    assert len(c.get("/api/v1/products").json()) == 30
+    assert len(c.get("/api/v1/products").json()) == 36
 
 
 def test_search(client):
@@ -265,7 +265,7 @@ def test_expiry_cleanup_and_restart(system, tmp_path):
     with TestClient(new_app) as fresh:
         fresh.cookies.set(COOKIE, token)
         assert fresh.get("/api/v1/cart").status_code == 401
-        assert len(fresh.get("/api/v1/products").json()) == 30
+        assert len(fresh.get("/api/v1/products").json()) == 36
         assert fresh.post("/api/v1/sessions", json={"renew": True}).status_code == 200
 
 

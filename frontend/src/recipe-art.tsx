@@ -348,22 +348,241 @@ function CaThuKhoArt({name, className, decorative}: ArtProps) {
   );
 }
 
+/* 13. Thịt kho trứng: Đĩa thịt kho tàu màu cánh gián với trứng luộc ngấm sốt */
+function ThitKhoTrungArt({name, className, decorative}: ArtProps) {
+  return (
+    <ArtFrame bg="#fbf3eb" accent="#9c4b18" name={name} className={className} decorative={decorative}>
+      <circle cx="180" cy="110" r="70" fill="#ffffff" stroke="#ebd6c5" strokeWidth="2" />
+      <circle cx="180" cy="110" r="58" fill="#542813" />
+      {/* Miếng thịt ba chỉ vuông vức màu cánh gián */}
+      <rect x="144" y="94" width="28" height="24" rx="4" fill="#783416" stroke="#4a1e0a" strokeWidth="1.5" />
+      <path d="M144 94h28v7h-28z" fill="#b86132" />
+      <rect x="186" y="104" width="26" height="22" rx="4" fill="#783416" stroke="#4a1e0a" strokeWidth="1.5" />
+      <path d="M186 104h26v6h-26z" fill="#b86132" />
+      <rect x="148" y="118" width="24" height="20" rx="3" fill="#692b10" />
+      {/* Quả trứng kho vàng nâu óng ánh */}
+      <ellipse cx="188" cy="92" rx="14" ry="17" fill="#af6929" stroke="#522a08" strokeWidth="1.5" />
+      <ellipse cx="186" cy="89" rx="10" ry="12" fill="#cf863a" />
+      <ellipse cx="183" cy="87" rx="3" ry="4" fill="#fae0a2" opacity="0.6" />
+      {/* Hành lá và ớt đỏ cắt lát */}
+      <circle cx="160" cy="112" r="2.8" fill="#2d7a38" />
+      <circle cx="178" cy="122" r="2.6" fill="#2d7a38" />
+      <circle cx="172" cy="104" r="2.8" fill="#d62b1a" />
+      <path d="M172 54c-2-7 3-11 1-16M192 52c-2-7 3-11 1-16" stroke="#946549" strokeWidth="1.8" strokeLinecap="round" strokeOpacity="0.45" />
+    </ArtFrame>
+  );
+}
+
+/* 14. Canh chua cá: Bát canh chua thơm thanh ngọt với cá thu và cà chua */
+function CanhChuaCaArt({name, className, decorative}: ArtProps) {
+  return (
+    <ArtFrame bg="#f2f8fc" accent="#1e6b8c" name={name} className={className} decorative={decorative}>
+      <ellipse cx="180" cy="114" rx="72" ry="48" fill="#ffffff" stroke="#cde3ed" strokeWidth="2" />
+      <ellipse cx="180" cy="112" rx="64" ry="40" fill="#e86b36" />
+      {/* Khúc cá thu khoanh trắng bùi */}
+      <ellipse cx="178" cy="108" rx="26" ry="16" fill="#f5ede6" stroke="#4a372d" strokeWidth="2" />
+      <ellipse cx="178" cy="108" rx="18" ry="10" fill="#d9c2b4" />
+      <circle cx="178" cy="108" r="4" fill="#4a372d" />
+      {/* Múi cà chua đỏ tươi */}
+      <path d="M140 108c4-12 16-10 18 2s-8 14-18 10z" fill="#c4381b" />
+      <path d="M202 114c6-10 18-6 18 4s-10 12-18 8z" fill="#c4381b" />
+      {/* Lát ớt đỏ và ngò om rau thơm */}
+      <circle cx="162" cy="122" r="3" fill="#2b6b33" />
+      <circle cx="194" cy="102" r="3.2" fill="#2b6b33" />
+      <circle cx="168" cy="100" r="2.5" fill="#d62415" />
+      <path d="M168 60c-2-8 3-12 1-18M188 58c-2-8 3-12 1-18" stroke="#7a8b94" strokeWidth="1.8" strokeLinecap="round" strokeOpacity="0.5" />
+    </ArtFrame>
+  );
+}
+
+/* 15. Tôm rim mặn ngọt: Đĩa tôm rim đỏ cam óng ánh đưa cơm */
+function TomRimManNgotArt({name, className, decorative}: ArtProps) {
+  return (
+    <ArtFrame bg="#fdf4f0" accent="#d94426" name={name} className={className} decorative={decorative}>
+      <circle cx="180" cy="110" r="68" fill="#ffffff" stroke="#ebd6ce" strokeWidth="2" />
+      <circle cx="180" cy="110" r="56" fill="#fcf0eb" />
+      {/* Các chú tôm rim đỏ cam uốn cong */}
+      <path d="M152 108c4-14 20-16 28-6s-4 22-18 18-14-2-10-12z" fill="#e34d28" stroke="#8e260c" strokeWidth="1.5" />
+      <path d="M158 102c4-6 12-6 16 0" stroke="#f68357" strokeWidth="2" strokeLinecap="round" />
+      <path d="M182 102c8-12 24-8 26 6s-12 18-22 14-10-10-4-20z" fill="#e34d28" stroke="#8e260c" strokeWidth="1.5" />
+      <path d="M188 98c4-4 12-2 14 4" stroke="#f68357" strokeWidth="2" strokeLinecap="round" />
+      <path d="M164 120c10-6 22 2 20 12s-14 10-20 4-4-10 0-16z" fill="#d94426" />
+      {/* Sốt rim óng ánh và hành lá cắt nhỏ */}
+      <circle cx="168" cy="110" r="2.8" fill="#2d7a38" />
+      <circle cx="180" cy="116" r="3" fill="#2d7a38" />
+      <circle cx="192" cy="112" r="2.8" fill="#2d7a38" />
+      <circle cx="174" cy="98" r="1.5" fill="#241b17" />
+    </ArtFrame>
+  );
+}
+
+/* 16. Bò xào rau muống: Rau muống xanh mướt xào tỏi và thịt bò */
+function BoXaoRauMuongArt({name, className, decorative}: ArtProps) {
+  return (
+    <ArtFrame bg="#f1f8f2" accent="#2d803c" name={name} className={className} decorative={decorative}>
+      <circle cx="180" cy="110" r="70" fill="#ffffff" stroke="#d3e6d6" strokeWidth="2" />
+      <circle cx="180" cy="110" r="58" fill="#eaf5eb" />
+      {/* Những cọng rau muống xanh ngắt giòn sần sật */}
+      <path d="M136 112c14-16 48-18 64-4s-12 24-34 20-22-4-30-16z" fill="#329241" opacity="0.9" />
+      <path d="M160 98c16-10 40-4 46 12s-14 20-30 16-20-14-16-28z" fill="#277934" opacity="0.85" />
+      <path d="M144 118l36-8M158 104l32 14" stroke="#48b059" strokeWidth="3.5" strokeLinecap="round" />
+      {/* Miếng thịt bò mềm đậm đà */}
+      <path d="M152 108c4-8 18-6 20 4s-10 10-20 4z" fill="#6a331c" stroke="#451e0e" strokeWidth="1.2" />
+      <path d="M182 114c6-6 18-4 16 6s-12 8-16 0z" fill="#6a331c" stroke="#451e0e" strokeWidth="1.2" />
+      {/* Tỏi phi thơm vàng rộm */}
+      <circle cx="168" cy="100" r="3" fill="#e8c76b" />
+      <circle cx="176" cy="118" r="2.8" fill="#e8c76b" />
+    </ArtFrame>
+  );
+}
+
+/* 17. Thịt heo xào chua ngọt: Miếng thịt áo sốt cà chua dứa óng ả */
+function ThitHeoXaoChuaNgotArt({name, className, decorative}: ArtProps) {
+  return (
+    <ArtFrame bg="#fef5ee" accent="#dc5528" name={name} className={className} decorative={decorative}>
+      <circle cx="180" cy="110" r="68" fill="#ffffff" stroke="#ebd6cb" strokeWidth="2" />
+      <circle cx="180" cy="110" r="56" fill="#fcede2" />
+      {/* Miếng thịt vàng ruộm áo sốt cam đỏ */}
+      <rect x="146" y="98" width="22" height="18" rx="4" fill="#a44c24" stroke="#692d13" strokeWidth="1.5" />
+      <path d="M148 100c6-3 14 0 16 5" stroke="#f07248" strokeWidth="2" strokeLinecap="round" />
+      <rect x="180" y="104" width="24" height="20" rx="4" fill="#964019" stroke="#692d13" strokeWidth="1.5" />
+      <rect x="156" y="116" width="22" height="17" rx="3" fill="#a44c24" />
+      {/* Sốt chua ngọt cà chua tươi và hành lá */}
+      <circle cx="174" cy="98" r="5" fill="#d93b1e" opacity="0.85" />
+      <circle cx="164" cy="112" r="2.8" fill="#2d7a38" />
+      <circle cx="188" cy="116" r="3" fill="#2d7a38" />
+    </ArtFrame>
+  );
+}
+
+/* 18. Canh cải thịt băm: Bát canh xanh mướt ngọt lành vị gừng */
+function CanhCaiThitBamArt({name, className, decorative}: ArtProps) {
+  return (
+    <ArtFrame bg="#f1f8f3" accent="#2e7d3e" name={name} className={className} decorative={decorative}>
+      <ellipse cx="180" cy="114" rx="72" ry="46" fill="#ffffff" stroke="#cde3d1" strokeWidth="2" />
+      <ellipse cx="180" cy="112" rx="64" ry="38" fill="#4ea85c" />
+      {/* Tán rau cải xanh tươi mát */}
+      <path d="M138 112c12-16 46-14 62-2s-10 22-28 18-26-4-34-16z" fill="#3b9149" />
+      <path d="M160 102c14-8 32-4 38 8s-12 16-24 12-18-8-14-20z" fill="#2e7c3b" />
+      {/* Viên thịt băm nổi thơm bùi */}
+      <circle cx="156" cy="116" r="6" fill="#916853" stroke="#614334" strokeWidth="1.2" />
+      <circle cx="184" cy="110" r="7" fill="#916853" stroke="#614334" strokeWidth="1.2" />
+      <circle cx="170" cy="122" r="5.5" fill="#916853" />
+      {/* Sợi gừng tươi */}
+      <path d="M168 104l8 6M192 118l6-4" stroke="#c79f42" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M170 60c-2-8 3-12 1-18M190 58c-2-8 3-12 1-18" stroke="#7a9680" strokeWidth="1.8" strokeLinecap="round" strokeOpacity="0.5" />
+    </ArtFrame>
+  );
+}
+
+/* 19. Đậu hũ chiên giòn: Đĩa đậu hũ chiên phồng vàng ươm */
+function DauHuChienGionArt({name, className, decorative}: ArtProps) {
+  return (
+    <ArtFrame bg="#fef8ea" accent="#d4911e" name={name} className={className} decorative={decorative}>
+      <circle cx="180" cy="110" r="68" fill="#ffffff" stroke="#ecd8be" strokeWidth="2" />
+      <circle cx="180" cy="110" r="56" fill="#faeee0" />
+      {/* Các miếng đậu chiên vàng giòn rụm */}
+      <rect x="144" y="98" width="26" height="22" rx="4" fill="#f1be47" stroke="#b87f1b" strokeWidth="1.5" />
+      <rect x="180" y="96" width="26" height="22" rx="4" fill="#f7cb63" stroke="#b87f1b" strokeWidth="1.5" />
+      <rect x="156" y="118" width="28" height="22" rx="4" fill="#e8b135" stroke="#b87f1b" strokeWidth="1.5" />
+      {/* Chén nước tương ớt nhỏ xinh ở góc */}
+      <circle cx="196" cy="122" r="11" fill="#ffffff" stroke="#c7a78e" strokeWidth="1.2" />
+      <circle cx="196" cy="122" r="8.5" fill="#361e14" />
+      <circle cx="196" cy="122" r="2" fill="#d92a18" />
+    </ArtFrame>
+  );
+}
+
+/* 20. Gà xào nấm: Gà mềm xào nấm hương tươi thơm lừng */
+function GaXaoNamArt({name, className, decorative}: ArtProps) {
+  return (
+    <ArtFrame bg="#fef6ed" accent="#a65e2b" name={name} className={className} decorative={decorative}>
+      <circle cx="180" cy="110" r="68" fill="#ffffff" stroke="#ebdacb" strokeWidth="2" />
+      <circle cx="180" cy="110" r="56" fill="#f8ede3" />
+      {/* Miếng thịt gà xào vàng nâu */}
+      <path d="M146 106c6-10 22-8 24 4s-12 12-24 4z" fill="#c48a52" stroke="#8c5828" strokeWidth="1.3" />
+      <path d="M182 108c8-8 22-4 20 6s-14 10-20 2z" fill="#d29860" stroke="#8c5828" strokeWidth="1.3" />
+      {/* Mũ nấm hương nâu mộc mạc */}
+      <path d="M162 96c4-8 16-8 18 0z" fill="#694331" />
+      <path d="M168 118c6-8 18-6 18 2z" fill="#5c3827" />
+      {/* Cà rốt hoa và hành lá */}
+      <circle cx="156" cy="118" r="4.5" fill="#df5c27" />
+      <circle cx="194" cy="98" r="4" fill="#df5c27" />
+      <circle cx="174" cy="108" r="2.8" fill="#33853c" />
+    </ArtFrame>
+  );
+}
+
+/* 21. Canh khoai tây thịt: Bát canh củ hầm thịt bùi ngọt */
+function CanhKhoaiTayThitArt({name, className, decorative}: ArtProps) {
+  return (
+    <ArtFrame bg="#fdf7ed" accent="#b88628" name={name} className={className} decorative={decorative}>
+      <ellipse cx="180" cy="114" rx="72" ry="46" fill="#ffffff" stroke="#e6d8c3" strokeWidth="2" />
+      <ellipse cx="180" cy="112" rx="64" ry="38" fill="#dfb364" />
+      {/* Miếng khoai tây vàng bở tơi */}
+      <path d="M142 110c4-12 18-12 22 0s-10 14-22 6z" fill="#f1cd7f" stroke="#ab802c" strokeWidth="1.3" />
+      <path d="M184 106c6-10 20-8 20 4s-12 12-20 4z" fill="#f1cd7f" stroke="#ab802c" strokeWidth="1.3" />
+      {/* Cà rốt khoanh tròn */}
+      <circle cx="166" cy="118" r="8" fill="#e05e26" stroke="#9e3b11" strokeWidth="1.2" />
+      {/* Miếng sườn/thịt heo hầm */}
+      <rect x="164" y="98" width="16" height="14" rx="3" fill="#8c4728" />
+      <circle cx="182" cy="120" r="2.8" fill="#2d7837" />
+      <path d="M170 60c-2-8 3-12 1-18M190 58c-2-8 3-12 1-18" stroke="#8a7356" strokeWidth="1.8" strokeLinecap="round" strokeOpacity="0.5" />
+    </ArtFrame>
+  );
+}
+
+/* 22. Trứng cuộn rau củ: Đĩa trứng cuộn thái khoanh lộ nhân rau củ rực rỡ */
+function TrungCuonRauCuArt({name, className, decorative}: ArtProps) {
+  return (
+    <ArtFrame bg="#fef9ec" accent="#d99c26" name={name} className={className} decorative={decorative}>
+      <circle cx="180" cy="110" r="68" fill="#ffffff" stroke="#ebd9be" strokeWidth="2" />
+      <circle cx="180" cy="110" r="56" fill="#faeee0" />
+      {/* Các khoanh trứng cuộn vàng óng */}
+      <ellipse cx="152" cy="108" rx="15" ry="18" fill="#f5c742" stroke="#b8881d" strokeWidth="1.5" />
+      <ellipse cx="152" cy="108" rx="9" ry="11" fill="#fae288" />
+      <circle cx="150" cy="106" r="2" fill="#df5224" />
+      <circle cx="154" cy="111" r="1.8" fill="#30823c" />
+
+      <ellipse cx="180" cy="106" rx="16" ry="19" fill="#f5c742" stroke="#b8881d" strokeWidth="1.5" />
+      <ellipse cx="180" cy="106" rx="10" ry="12" fill="#fae288" />
+      <circle cx="178" cy="104" r="2" fill="#df5224" />
+      <circle cx="182" cy="109" r="1.8" fill="#30823c" />
+
+      <ellipse cx="208" cy="108" rx="15" ry="18" fill="#f5c742" stroke="#b8881d" strokeWidth="1.5" />
+      <ellipse cx="208" cy="108" rx="9" ry="11" fill="#fae288" />
+      <circle cx="206" cy="106" r="2" fill="#df5224" />
+      <circle cx="210" cy="111" r="1.8" fill="#30823c" />
+    </ArtFrame>
+  );
+}
+
 export function RecipeVisual({recipe, className, decorative = false}: {recipe: {id: string; name: string}; className?: string; decorative?: boolean}) {
   const id = recipe.id;
   const name = recipe.name;
 
   if (id.startsWith('ga-rang')) return <GaRangGungArt name={name} className={className} decorative={decorative} />;
-  if (id.startsWith('bo-xao')) return <BoXaoCaChuaArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('bo-xao-ca-chua')) return <BoXaoCaChuaArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('bo-xao-rau')) return <BoXaoRauMuongArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('trung-chien')) return <TrungChienHanhArt name={name} className={className} decorative={decorative} />;
-  if (id.startsWith('canh-cai')) return <CanhCaiDauHuArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('trung-cuon')) return <TrungCuonRauCuArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('canh-cai-dau-hu')) return <CanhCaiDauHuArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('canh-cai-thit')) return <CanhCaiThitBamArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('dau-hu-sot')) return <DauHuSotCaArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('dau-hu-chien')) return <DauHuChienGionArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('canh-bi')) return <CanhBiTomArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('canh-chua')) return <CanhChuaCaArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('rau-muong')) return <RauMuongXaoArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('thit-kho')) return <ThitKhoTrungArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('thit-heo-xao') || id.includes('chua-ngot')) return <ThitHeoXaoChuaNgotArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('thit-rang') || id.startsWith('thit-heo')) return <ThitHeoRangGungArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('canh-ca-trung') || id.startsWith('canh-ca-chua')) return <CanhCaChuaTrungArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('canh-khoai-tay')) return <CanhKhoaiTayThitArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('salad')) return <SaladDuaLeoArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('mi-xao')) return <MiXaoRauArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('ca-thu')) return <CaThuKhoArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('tom-rim')) return <TomRimManNgotArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('ga-xao')) return <GaXaoNamArt name={name} className={className} decorative={decorative} />;
 
   // Mặc định: Gà rang gừng ấm cúng
   return <GaRangGungArt name={name} className={className} decorative={decorative} />;

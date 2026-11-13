@@ -32,9 +32,12 @@ import {useStore} from './context';
 import {getPantryStaples, savePantryStaples, STAPLE_DEFINITIONS} from './pantry';
 import {RecipeVisual} from './recipe-art';
 import {
+  ChiliIcon,
+  CornIcon,
   CucumberIcon,
   GarlicIcon,
   GingerIcon,
+  MangoIcon,
   MushroomIcon,
   NoodleIcon,
   OilBottleIcon,
@@ -46,9 +49,12 @@ import {
   SaltShakerIcon,
   SauceBottleIcon,
   ScallionIcon,
+  ShallotIcon,
   SugarBowlIcon,
   TofuIcon,
-  TomatoIcon
+  TomatoIcon,
+  WatermelonIcon,
+  YogurtIcon
 } from './product-icons';
 import type {Product, Recipe} from './types';
 
@@ -107,7 +113,13 @@ const PRODUCT_ICONS: Record<string, IconComponent> = {
   sugar: SugarBowlIcon,
   pepper: PepperMillIcon,
   banana: Banana,
-  orange: OrangeIcon
+  orange: OrangeIcon,
+  chili: ChiliIcon,
+  shallot: ShallotIcon,
+  corn: CornIcon,
+  watermelon: WatermelonIcon,
+  mango: MangoIcon,
+  yogurt: YogurtIcon
 };
 
 // Dự phòng cho SKU lạ: vẫn có hình theo nhóm hàng thay vì ô trống

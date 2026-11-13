@@ -239,3 +239,69 @@ export function OrangeIcon(props: GlyphProps) {
     </Glyph>
   );
 }
+
+/** Ớt tươi: quả ớt cong nhọn có tai cuống. */
+export function ChiliIcon(props: GlyphProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M14.5 4.5c-.8-1.2-2-1.8-3-1.8v2.4" />
+      <path d="M11.5 5.1c3.5 1.5 5 5 4.5 9-.6 4.8-4.2 7-6 7.4-1.2.2-2-.6-1.8-1.8.8-3.6 2.5-7.2 1-11.2l2.3-3.4z" />
+    </Glyph>
+  );
+}
+
+/** Hành tím: củ hành tròn có chóp lá nhọn. */
+export function ShallotIcon(props: GlyphProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M12 3.5v2.8" />
+      <path d="M12 6.3c4 2.8 6.5 6.6 6.5 9.7a6.5 6.5 0 0 1-13 0c0-3.1 2.5-6.9 6.5-9.7z" />
+      <path d="M12 9.5c2 2 3.5 4.2 3.5 6.5a3.5 3.5 0 0 1-7 0c0-2.3 1.5-4.5 3.5-6.5z" />
+    </Glyph>
+  );
+}
+
+/** Bắp ngô: bắp ngô thon có các hàng hạt và râu bẹ. */
+export function CornIcon(props: GlyphProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M8.5 19.5l7-14c1.2-2.4 3.5-1 4.5.5s-.2 3.6-1.8 5.5l-7 11c-1.5 2-3.8 1.5-4.5.5s.4-2.3 1.8-3.5z" />
+      <path d="M10.5 14.5l5.5-2.5M12.5 17.5l5.5-2.5M8.5 11.5l5.5-2.5" />
+      <path d="M6.5 21.5c2-3 4-5.5 6-7" />
+    </Glyph>
+  );
+}
+
+/** Dưa hấu: miếng dưa hấu có vỏ cong và các hạt dưa. */
+export function WatermelonIcon(props: GlyphProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M3.5 7.5a14 14 0 0 0 17 12L3.5 7.5z" />
+      <path d="M6 9.5a11 11 0 0 0 12.5 8" />
+      <circle cx="9.5" cy="11.5" r=".7" fill="currentColor" />
+      <circle cx="13" cy="13.5" r=".7" fill="currentColor" />
+      <circle cx="11.5" cy="15.5" r=".7" fill="currentColor" />
+    </Glyph>
+  );
+}
+
+/** Xoài cát: quả xoài dáng thon cong có cuống. */
+export function MangoIcon(props: GlyphProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M12 3.8v2.4" />
+      <path d="M12 6.2c3.5-.8 6.5 1.5 7 5.5.6 5-2.5 9.5-6.5 9.8-4.5.3-7.5-3-7.5-7.5 0-4.5 3.5-7 7-7.8z" />
+    </Glyph>
+  );
+}
+
+/** Sữa chua: hũ sữa chua có nắp và chiếc thìa nhỏ. */
+export function YogurtIcon(props: GlyphProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M7 8h10l-1.2 11.5a2 2 0 0 1-2 1.8h-3.6a2 2 0 0 1-2-1.8L7 8z" />
+      <path d="M5.5 6h13a1 1 0 0 1 1 1v1H4.5V7a1 1 0 0 1 1-1z" />
+      <path d="M15 3.5l-2.5 6" />
+    </Glyph>
+  );
+}
