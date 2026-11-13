@@ -192,3 +192,14 @@ class RuleBasedProvider:
                 "Chưa có món khác đáp ứng đủ yêu cầu trong danh mục mẫu. Bạn có thể tăng ngân sách, thêm thời gian hoặc bắt đầu lại; mình chưa tự nới điều kiện của bạn."
             )
         return result
+
+
+def get_recommendation_provider() -> RecommendationProvider:
+    import os
+
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
+        from .gemini import GeminiProvider
+
+        return GeminiProvider(api_key=gemini_key, model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"))
+    return RuleBasedProvider()
