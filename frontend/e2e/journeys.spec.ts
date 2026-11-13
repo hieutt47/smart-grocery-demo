@@ -93,10 +93,12 @@ test('session reset is explicit and clears only current session', async ({page, 
 test('catalog search stays aligned with browser history', async ({page}) => {
   await page.goto('/products?q=trung');
   const search = page.getByRole('textbox', {name: 'Tìm sản phẩm trên Bữa Nhà'});
+  await expect(search).toHaveValue('trung');
   await search.fill('ca chua');
   await page.getByRole('button', {name: 'Tìm sản phẩm', exact: true}).click();
   await expect(page).toHaveURL(/q=ca(%20|\+)chua/);
   await page.goBack();
+  await expect(page).toHaveURL(/q=trung/);
   await expect(search).toHaveValue('trung');
   await expect(page.getByText('cho “trung”', {exact: false})).toBeVisible();
 });
