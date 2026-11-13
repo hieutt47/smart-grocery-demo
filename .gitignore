@@ -30,3 +30,4 @@ htmlcov/
 docs/check_session.py
 docs/t.py
 s -*
+cookies.txt
