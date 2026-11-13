@@ -65,7 +65,22 @@ Quy tắc phản hồi:
 """
 
 
-DISCOVERED_CONFIG: dict[str, Any] = {"model": None, "version": None}
+DISCOVERED_CONFIG: dict[str, Any] = {"model": None, "version": None, "models": []}
+
+
+def extract_json(raw: str) -> dict[str, Any]:
+    text = raw.strip()
+    if text.startswith("```"):
+        first_newline = text.find("\n")
+        if first_newline != -1:
+            text = text[first_newline + 1 :]
+        if text.endswith("```"):
+            text = text[:-3].strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return json.loads(text[start : end + 1])
+    return json.loads(text)
 
 
 def discover_model_and_version(
@@ -92,10 +107,12 @@ def discover_model_and_version(
                         chosen = preferred
                     elif any(m.startswith(preferred) for m in models):
                         chosen = next(m for m in models if m.startswith(preferred))
+                    elif any("2.5-flash" in m for m in models):
+                        chosen = next(m for m in models if "2.5-flash" in m)
+                    elif any("flash-latest" in m for m in models):
+                        chosen = next(m for m in models if "flash-latest" in m)
                     elif any("2.0-flash" in m for m in models):
                         chosen = next(m for m in models if "2.0-flash" in m)
-                    elif any("1.5-flash" in m for m in models):
-                        chosen = next(m for m in models if "1.5-flash" in m)
                     elif any("flash" in m for m in models):
                         chosen = next(m for m in models if "flash" in m)
                     elif any("gemini" in m for m in models):
@@ -103,7 +120,7 @@ def discover_model_and_version(
                     else:
                         chosen = models[0]
 
-                    DISCOVERED_CONFIG.update({"model": chosen, "version": ver})
+                    DISCOVERED_CONFIG.update({"model": chosen, "version": ver, "models": models})
                     LAST_STATUS.update(
                         {
                             "status": "ready",
@@ -141,56 +158,93 @@ def call_gemini(
     target_model = discovered[0] if discovered else model
     target_version = discovered[1] if discovered else "v1beta"
 
-    payload = {
-        "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
-        "contents": [
-            {
-                "role": "user",
-                "parts": [
-                    {
-                        "text": f"Ngữ cảnh hội thoại trước đó: {json.dumps(context, ensure_ascii=False)}\n\nTin nhắn người dùng: {prompt}"
-                    }
-                ],
-            }
-        ],
-        "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
-    }
-    data = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json", "User-Agent": "BuaNha-Demo/1.0"}
-
+    known_models = DISCOVERED_CONFIG.get("models", [])
     candidates = [(target_model, target_version)]
+    for km in known_models:
+        if (km, target_version) not in candidates:
+            candidates.append((km, target_version))
+
     for alt_model in [
+        "gemini-2.5-flash",
+        "gemini-flash-latest",
+        "gemini-2.0-flash",
         "gemini-2.0-flash-exp",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-002",
-        "gemini-1.5-flash-001",
-        "gemini-1.5-pro-latest",
     ]:
         for alt_ver in ["v1beta", "v1"]:
             if (alt_model, alt_ver) not in candidates:
                 candidates.append((alt_model, alt_ver))
 
+    headers = {"Content-Type": "application/json", "User-Agent": "BuaNha-Demo/1.0"}
+    LAST_STATUS["attempt_errors"] = []
+
     for m, ver in candidates:
-        url = f"https://generativelanguage.googleapis.com/{ver}/models/{m}:generateContent?key={clean_key}"
-        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                res_data = json.loads(resp.read().decode("utf-8"))
-                text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-                LAST_STATUS.update({"status": "ok", "model": m, "version": ver, "error": None})
-                return json.loads(text)
-        except urllib.error.HTTPError as e:
-            err_body = e.read().decode("utf-8", errors="ignore")
-            logger.warning("Gemini API (%s/%s) HTTPError %d: %s", ver, m, e.code, err_body)
-            LAST_STATUS.update(
-                {"status": "error", "model": m, "version": ver, "code": e.code, "error": err_body[:300]}
+        payloads = [
+            {
+                "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "text": f"Ngữ cảnh hội thoại trước đó: {json.dumps(context, ensure_ascii=False)}\n\nTin nhắn người dùng: {prompt}"
+                            }
+                        ],
+                    }
+                ],
+                "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
+            },
+            {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "text": f"{SYSTEM_INSTRUCTION}\n\nNgữ cảnh trước: {json.dumps(context, ensure_ascii=False)}\n\nTin nhắn: {prompt}\n\nTrả lời bằng JSON:"
+                            }
+                        ],
+                    }
+                ],
+                "generationConfig": {"temperature": 0.2},
+            },
+        ]
+
+        for p in payloads:
+            url = (
+                f"https://generativelanguage.googleapis.com/{ver}/models/{m}:generateContent?key={clean_key}"
             )
-            continue
-        except Exception as e:
-            logger.warning("Gemini API (%s/%s) failed (%s)", ver, m, e)
-            LAST_STATUS.update({"status": "error", "model": m, "version": ver, "error": str(e)[:300]})
-            continue
+            req = urllib.request.Request(
+                url, data=json.dumps(p).encode("utf-8"), headers=headers, method="POST"
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    res_data = json.loads(resp.read().decode("utf-8"))
+                    text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                    parsed = extract_json(text)
+                    LAST_STATUS.update(
+                        {
+                            "status": "ok",
+                            "model": m,
+                            "version": ver,
+                            "error": None,
+                            "last_response_preview": parsed.get("message", "")[:100],
+                        }
+                    )
+                    return parsed
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode("utf-8", errors="ignore")
+                logger.warning("Gemini API (%s/%s) HTTPError %d: %s", ver, m, e.code, err_body)
+                LAST_STATUS["attempt_errors"].append(
+                    {"model": m, "version": ver, "code": e.code, "error": err_body[:200]}
+                )
+                LAST_STATUS.update(
+                    {"status": "error", "model": m, "version": ver, "code": e.code, "error": err_body[:300]}
+                )
+                continue
+            except Exception as e:
+                logger.warning("Gemini API (%s/%s) failed (%s)", ver, m, e)
+                LAST_STATUS["attempt_errors"].append({"model": m, "version": ver, "error": str(e)[:200]})
+                LAST_STATUS.update({"status": "error", "model": m, "version": ver, "error": str(e)[:300]})
+                continue
 
     return None
 
