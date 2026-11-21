@@ -44,7 +44,7 @@ Nhiệm vụ của bạn là lắng nghe nhu cầu bữa trưa, bữa tối, ăn
 Quy tắc phản hồi:
 1. Trả về định dạng JSON thuần túy (JSON object) theo đúng schema được yêu cầu.
 2. Giọng điệu thân thiện, trẻ trung, hiểu tâm lý dân văn phòng bận rộn.
-3. BẮT BUỘC dùng chính xác mã ID trong danh sách ứng viên (hoặc danh sách mâm cơm) được cung cấp ở prompt cho `selected_ids`, không tự dịch hay bịa món ngoài danh sách.
+3. BẮT BUỘC dùng chính xác mã ID trong danh sách ứng viên (hoặc danh sách mâm cơm) được cung cấp ở prompt cho `selected_ids`, không tự dịch hay bịa món ngoài danh sách. Nếu `intent` là `"meal"` (người dùng đòi combo/mâm cơm), `selected_ids` BẮT BUỘC chỉ chọn các mã mâm cơm bắt đầu bằng `bua-` (ví dụ: `bua-nhanh`, `bua-rau`, `bua-eat-clean-ga`, `bua-van-phong-15p`), KHÔNG chọn mã món lẻ.
 4. ĐA DẠNG GỢI Ý: Kiểm tra danh sách `shown` trong ngữ cảnh hội thoại; TUYỆT ĐỐI ưu tiên chọn các món KHÁC với những món đã nằm trong `shown` (trừ khi người dùng hỏi đích danh món đó).
 5. Trích xuất chính xác:
    - servings: số người ăn (số nguyên >= 1; giữ ngữ cảnh nếu là câu hỏi tiếp nối, mặc định 1–2 nếu không nhắc)
@@ -301,6 +301,8 @@ class GeminiProvider:
         exclusions = set(ctx["excluded"])
         pantry_set = set(str(x) for x in ctx.get("pantry", []))
         intent = llm_data.get("intent", "dish")
+        if any(kw in text for kw in ("mam com", "combo", "ca bua", "nhieu mon")):
+            intent = "meal"
         ai_message = llm_data.get("message", "").strip()
 
         result = {
@@ -342,7 +344,7 @@ class GeminiProvider:
                 dishes = [recipe]
 
             duration = sum(d.minutes for d in dishes)
-            if ctx["minutes"] is not None and duration > ctx["minutes"]:
+            if intent != "meal" and ctx["minutes"] is not None and duration > ctx["minutes"]:
                 continue
 
             selections = []
@@ -386,6 +388,51 @@ class GeminiProvider:
                     "reason": "Nguyên liệu tươi sạch theo gói; bạn có thể bỏ bớt những gia vị đã có sẵn ở nhà.",
                 }
             )
+
+        if not result["suggestions"] and intent == "meal":
+            for meal in MEALS:
+                dishes = [db.get(Recipe, rid) for rid in meal["recipe_ids"] if db.get(Recipe, rid)]
+                if not dishes:
+                    continue
+                selections = []
+                excluded = False
+                for r in dishes:
+                    ids = list(
+                        db.scalars(
+                            select(RecipeIngredient.ingredient_id).where(RecipeIngredient.recipe_id == r.id)
+                        )
+                    )
+                    if exclusions.intersection(ids):
+                        excluded = True
+                        break
+                    buy_ids = [i for i in ids if i not in pantry_set] or ids
+                    selections.append(
+                        RecipeSelection(
+                            recipe_id=r.id,
+                            servings=ctx["servings"],
+                            ingredient_ids=buy_ids,
+                            variant_id=f"{r.id}-nhat" if ctx.get("lighter") else None,
+                        )
+                    )
+                if excluded:
+                    continue
+                quote = recipe_quote(db, selections)
+                if quote["missing"]:
+                    continue
+                result["suggestions"].append(
+                    {
+                        "id": meal["id"],
+                        "name": meal["name"],
+                        "recipes": [recipe_data(db, r) for r in dishes],
+                        "selections": [s.model_dump() for s in selections],
+                        "total": quote["total"],
+                        "minutes": sum(d.minutes for d in dishes),
+                        "servings": ctx["servings"],
+                        "reason": "Mâm cơm trọn gói đủ món mặn, rau/canh cân bằng cho bữa ăn.",
+                    }
+                )
+                if len(result["suggestions"]) == 3:
+                    break
 
         if result["suggestions"]:
             ctx["shown"] = list(

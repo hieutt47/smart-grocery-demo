@@ -584,9 +584,10 @@ function GenericDishArt({
       <circle cx="180" cy="108" r="54" fill={bg} />
       <text
         x="180"
-        y="124"
+        y="112"
         textAnchor="middle"
         fontSize="54"
+        fill="#1f2937"
         dominantBaseline="central"
       >
         {emoji}
