@@ -23,12 +23,8 @@ def upgrade():
         sa.PrimaryKeyConstraint("id"),
     )
     with op.batch_alter_table("analytics_events", schema=None) as batch_op:
-        batch_op.create_index(
-            batch_op.f("ix_analytics_events_event_name"), ["event_name"], unique=False
-        )
-        batch_op.create_index(
-            batch_op.f("ix_analytics_events_created_at"), ["created_at"], unique=False
-        )
+        batch_op.create_index(batch_op.f("ix_analytics_events_event_name"), ["event_name"], unique=False)
+        batch_op.create_index(batch_op.f("ix_analytics_events_created_at"), ["created_at"], unique=False)
 
 
 def downgrade():

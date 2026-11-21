@@ -26,7 +26,12 @@ def test_seed_and_public_access(system):
 
 
 def test_analytics_events_and_summary(client):
-    assert client.post("/api/v1/events", json={"event_name": "random_pick", "target_id": "ga-rang-gung"}).status_code == 200
+    assert (
+        client.post(
+            "/api/v1/events", json={"event_name": "random_pick", "target_id": "ga-rang-gung"}
+        ).status_code
+        == 200
+    )
     assert client.post("/api/v1/events", json={"event_name": "share_click"}).status_code == 200
     summary = client.get("/api/v1/metrics/summary").json()
     assert summary["total_events"] >= 2

@@ -629,7 +629,14 @@ RECIPES = [
         "🥣",
         "green",
         ["bò", "mì", "nhanh", "món mặn"],
-        {"rice-vermicelli": 200, "beef": 200, "lettuce": 120, "cucumber": 100, "garlic": 15, "fish-sauce": 20},
+        {
+            "rice-vermicelli": 200,
+            "beef": 200,
+            "lettuce": 120,
+            "cucumber": 100,
+            "garlic": 15,
+            "fish-sauce": 20,
+        },
         [
             "Luộc bún khô khoảng 6-7 phút rồi xả nước lạnh cho tơi.",
             "Xào thịt bò nhanh trên lửa lớn với nhiều tỏi băm.",

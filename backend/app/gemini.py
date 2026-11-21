@@ -96,7 +96,9 @@ def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int =
             score += 50
         if normalize(r.name) in text or any(normalize(t) in text for t in r.tags):
             score += 30
-        if ("eat clean" in text or "giam can" in text or "it dau" in text or "thanh dam" in text) and "eat-clean" in r.tags:
+        if (
+            "eat clean" in text or "giam can" in text or "it dau" in text or "thanh dam" in text
+        ) and "eat-clean" in r.tags:
             score += 35
         if ("nhanh" in text or "met" in text or "15" in text) and r.minutes <= 15:
             score += 25
