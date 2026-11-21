@@ -1,7 +1,7 @@
 import {useState} from 'react';
 import {ArrowRight, Clock3, Dices, Leaf, Share2, SlidersHorizontal, Sparkles, Users, UtensilsCrossed} from 'lucide-react';
 import {Link} from 'react-router-dom';
-import {money} from '../api';
+import {money, trackEvent} from '../api';
 import {LoadState, RecipeCard} from '../components';
 import {useResource, useStore} from '../context';
 import {getRecipeNutrition, OFFICE_LUNCH_OPTIONS, type OfficeLunchOption} from '../nutrition';
@@ -50,6 +50,7 @@ export function Home() {
   const displayedRecipe = randomRecipe || allRecipes[0] || null;
 
   function pickRandom() {
+    trackEvent(groupMode ? 'group_pick' : 'random_pick', pickerMode);
     if (pickerMode === 'lunch') {
       const pool = OFFICE_LUNCH_OPTIONS.filter(x => x.id !== randomLunch.id);
       setRandomLunch(pool[Math.floor(Math.random() * pool.length)]);

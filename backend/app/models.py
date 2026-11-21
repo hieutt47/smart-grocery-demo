@@ -157,3 +157,11 @@ class RateWindow(Base):
     kind: Mapped[str] = mapped_column(primary_key=True)
     window: Mapped[int] = mapped_column(Integer)
     count: Mapped[int]
+
+
+class AnalyticsEvent(Base):
+    __tablename__ = "analytics_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    event_name: Mapped[str] = mapped_column(String, index=True)
+    target_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[int] = mapped_column(Integer, index=True)

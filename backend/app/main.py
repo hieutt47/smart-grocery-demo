@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, func, select, text
 
 from .assistant import get_recommendation_provider
 from .db import create_database
@@ -29,6 +29,7 @@ from .domain import (
     update_cart,
 )
 from .models import (
+    AnalyticsEvent,
     Cart,
     CartItem,
     CheckoutQuote,
@@ -48,6 +49,7 @@ from .schemas import (
     CartLine,
     CartPatch,
     DeliveryInput,
+    EventInput,
     OrderInput,
     RecipeQuoteInput,
     SessionInput,
@@ -500,6 +502,21 @@ def create_app(database_url=None, clock=None):
             + [{"role": "user", "content": body.content}, {"role": "assistant", "result": result}]
         )[-20:]
         return result
+
+    @app.post("/api/v1/events")
+    def record_event(body: EventInput, db=Depends(database, scope="function")):
+        db.add(AnalyticsEvent(event_name=body.event_name, target_id=body.target_id, created_at=now()))
+        return {"recorded": True}
+
+    @app.get("/api/v1/metrics/summary")
+    def metrics_summary(db=Depends(database, scope="function")):
+        rows = db.execute(
+            select(AnalyticsEvent.event_name, func.count(AnalyticsEvent.id)).group_by(
+                AnalyticsEvent.event_name
+            )
+        ).all()
+        by_event = {name: count for name, count in rows}
+        return {"total_events": sum(by_event.values()), "by_event": by_event}
 
     # The same origin serves the built React app. Unknown API paths remain JSON 404s.
     static_dir = ROOT / "frontend/dist"

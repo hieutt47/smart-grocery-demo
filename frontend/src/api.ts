@@ -24,3 +24,15 @@ export async function api<T>(path: string, method = 'GET', body?: unknown, signa
 
 export const money = (value: number) => new Intl.NumberFormat('vi-VN').format(value) + ' đ';
 export const dateTime = (value: string) => new Intl.DateTimeFormat('vi-VN', {dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh'}).format(new Date(value));
+
+export function trackEvent(
+  eventName: 'assistant_ask' | 'random_pick' | 'group_pick' | 'share_click' | 'save_recipe' | 'copy_checklist',
+  targetId?: string
+): void {
+  void fetch('/api/v1/events', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({event_name: eventName, target_id: targetId || null})
+  }).catch(() => {});
+}

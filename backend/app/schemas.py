@@ -65,3 +65,15 @@ class AdvanceInput(Input):
 
 class SessionInput(Input):
     renew: bool = False
+
+
+class EventInput(Input):
+    event_name: Literal[
+        "assistant_ask",
+        "random_pick",
+        "group_pick",
+        "share_click",
+        "save_recipe",
+        "copy_checklist",
+    ]
+    target_id: str | None = Field(default=None, max_length=80)

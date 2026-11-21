@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react';
 import {Link, useNavigate, useSearchParams} from 'react-router-dom';
 import {ArrowLeft, ChefHat, Clock3, Copy, Heart, Info, Share2, Sparkles, Users, UtensilsCrossed, X} from 'lucide-react';
-import {api, money} from '../api';
+import {api, money, trackEvent} from '../api';
 import {useStore} from '../context';
 import {LoadState, PantryModal, Quantity} from '../components';
 import {getRecipeNutrition} from '../nutrition';
@@ -109,6 +109,7 @@ export function Cook() {
     const text = `📝 Danh sách đi chợ (${dishTitle} · ${servings} người)\n${lines.join('\n')}\nƯớc tính tổng: ~${money(quote.total)}`;
     try {
       await navigator.clipboard.writeText(text);
+      trackEvent('copy_checklist', recipes[0]?.id);
       notify('Đã sao chép danh sách đi chợ!');
     } catch {
       notify('Không thể tự sao chép; hãy chọn và copy thủ công nhé.');

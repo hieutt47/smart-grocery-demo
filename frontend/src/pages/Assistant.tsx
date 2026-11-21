@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
 import {ArrowRight, Bot, ChefHat, Clock3, Dices, Heart, RotateCcw, Send, Share2, Sparkles} from 'lucide-react';
-import {api, money} from '../api';
+import {api, money, trackEvent} from '../api';
 import {useResource, useStore} from '../context';
 import {LoadState, PageTitle, PantryModal} from '../components';
 import {OFFICE_LUNCH_OPTIONS} from '../nutrition';
@@ -67,6 +67,7 @@ export function Assistant() {
 
   async function send(content = input) {
     if (!content.trim() || sending) return;
+    trackEvent('assistant_ask');
     setSending(true);
     setError('');
     try {

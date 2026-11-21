@@ -1,6 +1,6 @@
 import {createContext, useCallback, useContext, useEffect, useState} from 'react';
 import type {ReactNode} from 'react';
-import {api} from './api';
+import {api, trackEvent} from './api';
 import type {Cart} from './types';
 
 const EMPTY: Cart = {items: [], version: 0, total: 0, count: 0, delivery_fee: 0};
@@ -122,6 +122,7 @@ export function StoreProvider({children}: {children: ReactNode}) {
         } catch {
           // ignore storage quota errors
         }
+        if (!exists) trackEvent('save_recipe', recipeId);
         notify(exists ? 'Đã bỏ khỏi danh sách đã lưu' : 'Đã lưu món vào mục Đã lưu');
         return next;
       });
@@ -133,6 +134,7 @@ export function StoreProvider({children}: {children: ReactNode}) {
 
   const shareItem = useCallback(
     async (title: string, text: string, path?: string) => {
+      trackEvent('share_click', path);
       const url = path ? `${window.location.origin}${path}` : window.location.href;
       const shareText = `${title}\n${text}\n${url}`;
       if (navigator.share) {
