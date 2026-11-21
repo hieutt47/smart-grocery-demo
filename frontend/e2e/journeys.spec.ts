@@ -72,6 +72,6 @@ test('mobile layout, redirect legacy routes, and session reset', async ({page, c
 
   await context.clearCookies();
   await context.addCookies([{name: 'grocery_session', value: 'expired-token-for-test', url: 'http://127.0.0.1:8001'}]);
-  await page.reload();
+  await page.goto('/');
   await expect(page.getByRole('heading', {name: 'Phiên làm việc đã hết hạn'})).toBeVisible();
 });

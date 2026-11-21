@@ -114,7 +114,11 @@ def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int =
     scored.sort(key=lambda x: (x[0], x[1]))
     top_recipes = "\n".join(item[2] for item in scored[:limit])
     meal_lines = "\n".join(f"- {m['id']}: {m['name']} ({' + '.join(m['recipe_ids'])})" for m in MEALS)
-    return f"Danh sách món ứng viên đã lọc ({min(limit, len(scored))} món):\n{top_recipes}\n\nDanh mục mâm cơm:\n{meal_lines}"
+    return (
+        f"Tổng kho Bữa Nhà hiện có {len(recipes)} công thức nấu ăn và {len(MEALS)} mâm cơm gia đình.\n"
+        f"Danh sách món ứng viên đã lọc ({min(limit, len(scored))} món):\n{top_recipes}\n\n"
+        f"Danh mục mâm cơm:\n{meal_lines}"
+    )
 
 
 def extract_json(raw: str) -> dict[str, Any]:
