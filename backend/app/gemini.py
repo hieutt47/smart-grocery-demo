@@ -1,10 +1,12 @@
-"""Google Gemini Fast Flash recommendation provider.
+"""Google Gemini Agentic Provider with Function Calling & Dynamic Recipe Adaptation.
 
-Integrates Gemini for natural language understanding and warm conversational tone
-while preserving all deterministic backend pricing, SKU mapping, pack rounding,
-and safety invariants. Optimized for ultra-low latency (<1.5s) using fast-path model pinning.
+Combines Gemini Function Calling (search_catalog_recipes, get_available_ingredients,
+build_custom_recipe) with deterministic backend pricing, pack rounding, pantry
+subtraction, and allergy/health guardrails. Falls back cleanly to RuleBasedProvider
+on network error or API quota limits (HTTP 429).
 """
 
+import hashlib
 import json
 import logging
 import urllib.error
@@ -13,14 +15,13 @@ from typing import Any
 
 from sqlalchemy import select
 
-from .domain import normalize, product_data, recipe_data, recipe_quote
+from .domain import custom_recipe_quote, normalize, product_data, recipe_data, recipe_quote
 from .models import Ingredient, Product, Recipe, RecipeIngredient
 from .schemas import RecipeSelection
 from .seed import MEALS
 
 logger = logging.getLogger("grocery.gemini")
 
-# Ultra-fast models priority (tested and verified on live API key)
 FAST_MODELS = [
     ("gemini-flash-lite-latest", "v1beta"),
     ("gemini-flash-latest", "v1beta"),
@@ -29,7 +30,6 @@ FAST_MODELS = [
     ("gemini-3-flash-preview", "v1beta"),
 ]
 
-# Pin the active working model in memory for instant subsequent responses
 ACTIVE_WORKING_MODEL: tuple[str, str] = ("gemini-flash-lite-latest", "v1beta")
 LAST_STATUS: dict[str, Any] = {
     "status": "ready",
@@ -38,26 +38,302 @@ LAST_STATUS: dict[str, Any] = {
     "error": None,
 }
 
-SYSTEM_INSTRUCTION = """Bạn là trợ lý tư vấn ăn uống thông minh của Bữa Nhà — chuyên đồng hành cùng dân văn phòng trẻ và người bận rộn.
-Nhiệm vụ của bạn là lắng nghe nhu cầu bữa trưa, bữa tối, ăn vặt hoặc nấu nhanh bằng tiếng Việt tự nhiên và gợi ý món ăn phù hợp nhất từ danh sách ứng viên được cung cấp.
+SYSTEM_INSTRUCTION = """Bạn là trợ lý tư vấn ăn uống thông minh và linh hoạt của Bữa Nhà — chuyên đồng hành cùng dân văn phòng trẻ và gia đình Việt.
 
-Quy tắc phản hồi:
-1. Trả về định dạng JSON thuần túy (JSON object) theo đúng schema được yêu cầu.
-2. Giọng điệu thân thiện, trẻ trung, hiểu tâm lý dân văn phòng bận rộn.
-3. BẮT BUỘC dùng chính xác mã ID trong danh sách ứng viên (hoặc danh sách mâm cơm) được cung cấp ở prompt cho `selected_ids`, không tự dịch hay bịa món ngoài danh sách. Nếu `intent` là `"meal"` (người dùng đòi combo/mâm cơm), `selected_ids` BẮT BUỘC chỉ chọn các mã mâm cơm bắt đầu bằng `bua-` (ví dụ: `bua-nhanh`, `bua-rau`, `bua-eat-clean-ga`, `bua-van-phong-15p`), KHÔNG chọn mã món lẻ.
-4. ĐA DẠNG GỢI Ý: Kiểm tra danh sách `shown` trong ngữ cảnh hội thoại; TUYỆT ĐỐI ưu tiên chọn các món KHÁC với những món đã nằm trong `shown` (trừ khi người dùng hỏi đích danh món đó).
-5. Trích xuất chính xác:
-   - servings: số người ăn (số nguyên >= 1; giữ ngữ cảnh nếu là câu hỏi tiếp nối, mặc định 1–2 nếu không nhắc)
-   - budget: ngân sách VND nếu câu hiện tại có nhắc (ví dụ: "100k" -> 100000, "50k" -> 50000; trả về null nếu người dùng chuyển sang chủ đề không giới hạn ngân sách)
-   - minutes: thời gian nấu tối đa nếu có nhắc (ví dụ: 15 phút -> 15; "nhanh"/"mệt" -> 25; trả về null nếu không giới hạn)
-   - excluded: danh sách mã nguyên liệu/sản phẩm khách không muốn ăn hoặc muốn đổi (ví dụ: "không thích cá" -> ["fish"], "tránh tôm" -> ["shrimp"])
-   - intent: "dish" (gợi ý món lẻ), "meal" (gợi ý mâm cơm), "products" (chỉ tìm mua nguyên liệu thô), "general" (hỏi đáp chung)
-   - selected_ids: danh sách 2-3 mã món ăn (recipe ID) hoặc mã mâm cơm (meal ID) phù hợp nhất và CHƯA có trong `shown`
-   - selected_product_ids: danh sách mã sản phẩm nếu khách muốn mua lẻ (ví dụ ["beef", "tomato"])
-   - lighter: boolean (true nếu khách yêu cầu nêm nhạt, ít mặn, thanh đạm, eat clean hơn)
-   - message: lời nhắn tiếng Việt tự nhiên, ngắn gọn gửi đến người dùng, giải thích tại sao món này hợp với yêu cầu.
-6. Nếu trong ngữ cảnh có `pantry` (gia vị sẵn có ở nhà), chi phí ứng viên đã trừ phần gia vị này.
-"""
+Bạn có 3 công cụ (tools) kết nối trực tiếp với kho dữ liệu thật:
+- `search_catalog_recipes`: Tìm kiếm sâu trong toàn bộ 60 công thức nấu ăn có sẵn (theo từ khóa, tag, thời gian, nguyên liệu tránh ăn).
+- `get_available_ingredients`: Xem danh sách 48 nguyên liệu/sản phẩm thật đang có trong kho (kèm mã ID, đơn vị, giá, dị ứng).
+- `build_custom_recipe`: Tự thiết kế một món ăn mới hoàn chỉnh CHỈ dùng các `ingredient_id` thật từ `get_available_ingredients` khi kho 60 món có sẵn không đáp ứng tốt yêu cầu (ví dụ: tủ lạnh chỉ còn vài nguyên liệu lẻ, bệnh lý tim mạch/dạ dày/tiểu đường, phụ nữ mang thai, hoặc chế độ ăn đặc biệt).
+
+Nguyên tắc vận hành:
+1. Nếu các món trong danh sách ứng viên sẵn có đã đáp ứng tốt nhu cầu phổ thông (ăn trưa, nấu nhanh, mâm cơm gia đình), hãy chọn trực tiếp mã ID có sẵn để phản hồi nhanh nhất.
+2. Khi người dùng nêu tình huống đặc biệt (bệnh lý như tim mạch/huyết áp/dạ dày/tiểu đường, bà bầu, hoặc liệt kê nguyên liệu có sẵn trong tủ lạnh), hãy chủ động gọi `search_catalog_recipes` / `get_available_ingredients` và dùng `build_custom_recipe` nếu cần thiết kế món phù hợp (ví dụ: món hấp/luộc ít muối cho người tim mạch, món chín kỹ giàu sắt/folate cho bà bầu).
+3. Nếu `intent` là `"meal"` (người dùng đòi combo/mâm cơm), `selected_ids` BẮT BUỘC chỉ chọn mã mâm cơm bắt đầu bằng `bua-`.
+4. ĐA DẠNG GỢI Ý: Kiểm tra `shown` trong ngữ cảnh và ưu tiên chọn món CHƯA xuất hiện trong `shown`.
+5. Kết quả cuối cùng PHẢI là một JSON object thuần túy (không bọc text thừa ngoài JSON) có cấu trúc:
+{
+  "servings": <int 1..6>,
+  "budget": <int VND hoặc null>,
+  "minutes": <int hoặc null>,
+  "excluded": [<ingredient_id>],
+  "intent": "dish" | "meal" | "products" | "general",
+  "selected_ids": [<recipe_id hoặc meal_id hoặc custom_recipe_id từ build_custom_recipe>],
+  "selected_product_ids": [<product_id nếu mua lẻ>],
+  "lighter": <boolean>,
+  "health_advisory": <string ngắn gọn lưu ý dinh dưỡng/chế biến nếu có yếu tố bệnh lý/thai kỳ, hoặc null>,
+  "message": <lời nhắn tiếng Việt tự nhiên, giải thích lý do gợi ý>
+}"""
+
+GEMINI_TOOLS = [
+    {
+        "name": "search_catalog_recipes",
+        "description": "Tìm kiếm công thức nấu ăn trong toàn bộ kho 60 món của Bữa Nhà theo từ khóa, thời gian, tag hoặc loại trừ nguyên liệu.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "query": {
+                    "type": "STRING",
+                    "description": "Từ khóa tên món hoặc nguyên liệu (vd: hap, luoc, uc ga, ca)",
+                },
+                "max_minutes": {"type": "INTEGER", "description": "Thời gian nấu tối đa (phút)"},
+                "exclude_ingredients": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "Danh sách mã nguyên liệu cần tránh (vd: ['fish', 'pork'])",
+                },
+                "required_tags": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "Các tag cần có (vd: ['eat-clean', 'canh'])",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_available_ingredients",
+        "description": "Liệt kê các nguyên liệu/sản phẩm thật đang có trong kho để dùng khi thiết kế công thức mới.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "category": {
+                    "type": "STRING",
+                    "description": "Lọc theo nhóm (Rau củ, Thịt & cá, Trứng & đậu, Gạo & gia vị, Trái cây) hoặc để trống để lấy tất cả",
+                }
+            },
+        },
+    },
+    {
+        "name": "build_custom_recipe",
+        "description": "Tự thiết kế và tính giá một món ăn mới cho 2 người từ các ingredient_id có thật trong kho.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "name": {"type": "STRING", "description": "Tên món ăn bằng tiếng Việt"},
+                "minutes": {"type": "INTEGER", "description": "Thời gian nấu ước tính (phút)"},
+                "emoji": {"type": "STRING", "description": "1 emoji đại diện món ăn"},
+                "tags": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "1-3 tag ngắn (vd: ['eat-clean', 'nhanh'])",
+                },
+                "ingredients": {
+                    "type": "ARRAY",
+                    "description": "Danh sách nguyên liệu cho khẩu phần 2 người",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "ingredient_id": {
+                                "type": "STRING",
+                                "description": "Mã ID thật từ get_available_ingredients",
+                            },
+                            "quantity": {
+                                "type": "NUMBER",
+                                "description": "Định lượng cho 2 người theo đúng đơn vị của nguyên liệu",
+                            },
+                        },
+                        "required": ["ingredient_id", "quantity"],
+                    },
+                },
+                "steps": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "3-4 bước nấu ngắn gọn, rõ ràng",
+                },
+                "health_note": {
+                    "type": "STRING",
+                    "description": "Ghi chú chế biến phù hợp sức khỏe (nếu có)",
+                },
+            },
+            "required": ["name", "minutes", "ingredients", "steps"],
+        },
+    },
+]
+
+
+def tool_search_catalog_recipes(
+    db,
+    query: str = "",
+    max_minutes: int | None = None,
+    exclude_ingredients: list[str] | None = None,
+    required_tags: list[str] | None = None,
+    pantry: list[str] | None = None,
+    servings: int = 2,
+    shown: list[str] | None = None,
+) -> dict[str, Any]:
+    """Deterministic SQLite search over all 60+ catalog recipes."""
+    norm_q = normalize(query or "").strip()
+    exclusions = set(str(x) for x in (exclude_ingredients or []))
+    req_tags = [normalize(str(t)) for t in (required_tags or []) if str(t).strip()]
+    pantry_set = set(str(x) for x in (pantry or []))
+    shown_set = set(str(x) for x in (shown or []))
+    safe_servings = max(1, min(6, int(servings or 2)))
+
+    matches = []
+    for r in db.scalars(select(Recipe).order_by(Recipe.minutes, Recipe.id)):
+        if max_minutes is not None and r.minutes > int(max_minutes):
+            continue
+        norm_tags = [normalize(t) for t in r.tags]
+        if req_tags and not all(any(rt in nt for nt in norm_tags) for rt in req_tags):
+            continue
+        ing_ids = list(
+            db.scalars(select(RecipeIngredient.ingredient_id).where(RecipeIngredient.recipe_id == r.id))
+        )
+        if exclusions.intersection(ing_ids):
+            continue
+        if "fish" in exclusions and any(
+            (ing := db.get(Ingredient, iid)) is not None and "fish" in ing.allergens for iid in ing_ids
+        ):
+            continue
+        if norm_q:
+            haystack = normalize(r.name + " " + r.description + " " + " ".join(r.tags))
+            if not all(word in haystack for word in norm_q.split()):
+                continue
+
+        buy_ids = [i for i in ing_ids if i not in pantry_set] or ing_ids
+        quote = recipe_quote(
+            db,
+            [
+                RecipeSelection(
+                    recipe_id=r.id, servings=safe_servings, ingredient_ids=buy_ids, variant_id=None
+                )
+            ],
+        )
+        if quote["missing"]:
+            continue
+        matches.append(
+            {
+                "id": r.id,
+                "name": r.name,
+                "minutes": r.minutes,
+                "tags": r.tags,
+                "ingredients": ing_ids,
+                "estimated_total_vnd": quote["total"],
+                "already_shown": r.id in shown_set,
+            }
+        )
+
+    matches.sort(key=lambda item: (item["already_shown"], item["minutes"], item["estimated_total_vnd"]))
+    return {"count": len(matches), "recipes": matches[:12]}
+
+
+def tool_get_available_ingredients(db, category: str = "") -> dict[str, Any]:
+    """Return authoritative inventory ingredients/products for AI custom recipe composition."""
+    norm_cat = normalize(category or "").strip()
+    items = []
+    for p in db.scalars(select(Product).order_by(Product.category, Product.id)):
+        if not p.available:
+            continue
+        if norm_cat and norm_cat not in normalize(p.category):
+            continue
+        ing = db.get(Ingredient, p.id)
+        items.append(
+            {
+                "id": p.id,
+                "name": p.name,
+                "category": p.category,
+                "unit": p.unit,
+                "pack_size": p.pack_size,
+                "price_vnd": p.price,
+                "allergens": ing.allergens if ing else [],
+            }
+        )
+    return {"count": len(items), "ingredients": items}
+
+
+def tool_build_custom_recipe(
+    db,
+    name: str,
+    minutes: int,
+    ingredients: list[dict[str, Any]],
+    steps: list[str],
+    emoji: str = "🍽️",
+    tags: list[str] | None = None,
+    health_note: str = "",
+    servings: int = 2,
+    pantry: list[str] | None = None,
+) -> dict[str, Any]:
+    """Validate AI-proposed ingredients against SQLite and compute authoritative cost."""
+    clean_name = str(name or "").strip()[:80]
+    if not clean_name or not ingredients or not steps:
+        return {"error": "Thiếu tên món, danh sách nguyên liệu hoặc các bước chế biến."}
+
+    pantry_set = set(str(x) for x in (pantry or []))
+    safe_servings = max(1, min(6, int(servings or 2)))
+    safe_minutes = max(5, min(90, int(minutes or 20)))
+
+    validated_lines = []
+    recipe_ingredients = []
+    seen_ids = set()
+    for line in ingredients[:15]:
+        iid = str(line.get("ingredient_id", "")).strip()
+        qty = float(line.get("quantity", 0) or 0)
+        if not iid or iid in seen_ids or qty <= 0:
+            continue
+        ing = db.get(Ingredient, iid)
+        if not ing:
+            return {
+                "error": f"Mã nguyên liệu '{iid}' không tồn tại trong kho. Hãy gọi get_available_ingredients để lấy đúng ID."
+            }
+        seen_ids.add(iid)
+        validated_lines.append({"ingredient_id": iid, "quantity": qty})
+        recipe_ingredients.append({"id": iid, "name": ing.name, "quantity": round(qty, 2), "unit": ing.unit})
+
+    if not validated_lines:
+        return {"error": "Không có nguyên liệu hợp lệ nào trong đề xuất."}
+
+    buy_lines = [x for x in validated_lines if x["ingredient_id"] not in pantry_set] or validated_lines
+    quote = custom_recipe_quote(db, safe_servings, 2, buy_lines)
+    if quote["missing"]:
+        return {"error": "Một số nguyên liệu hiện chưa sẵn sàng trong danh mục mẫu."}
+
+    slug_seed = json.dumps({"name": clean_name, "ingredients": validated_lines}, sort_keys=True)
+    custom_id = f"custom-{hashlib.sha256(slug_seed.encode()).hexdigest()[:10]}"
+    clean_tags = [str(t).strip()[:24] for t in (tags or ["AI thiết kế"]) if str(t).strip()][:4]
+
+    recipe_obj = {
+        "id": custom_id,
+        "name": clean_name,
+        "description": health_note.strip()
+        or "Món ăn được AI thiết kế riêng theo nhu cầu của bạn từ nguyên liệu thật.",
+        "minutes": safe_minutes,
+        "servings": 2,
+        "emoji": (str(emoji or "🍽️").strip() or "🍽️")[:4],
+        "color": "green",
+        "tags": clean_tags or ["AI thiết kế"],
+        "source": "Công thức phối hợp bởi Trợ lý AI Bữa Nhà",
+        "is_custom": True,
+        "ingredients": recipe_ingredients,
+        "steps": [str(s).strip() for s in steps if str(s).strip()][:8],
+        "variants": [],
+    }
+    selection = {
+        "recipe_id": custom_id,
+        "servings": safe_servings,
+        "ingredient_ids": [x["ingredient_id"] for x in buy_lines],
+        "variant_id": None,
+    }
+    return {
+        "status": "ok",
+        "custom_recipe_id": custom_id,
+        "estimated_total_vnd": quote["total"],
+        "recipe": recipe_obj,
+        "selection": selection,
+    }
+
+
+def extract_json(raw: str) -> dict[str, Any]:
+    text = raw.strip()
+    if text.startswith("```"):
+        first_newline = text.find("\n")
+        if first_newline != -1:
+            text = text[first_newline + 1 :]
+        if text.endswith("```"):
+            text = text[:-3].strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return json.loads(text[start : end + 1])
+    return json.loads(text)
 
 
 def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int = 25) -> str:
@@ -121,19 +397,57 @@ def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int =
     )
 
 
-def extract_json(raw: str) -> dict[str, Any]:
-    text = raw.strip()
-    if text.startswith("```"):
-        first_newline = text.find("\n")
-        if first_newline != -1:
-            text = text[first_newline + 1 :]
-        if text.endswith("```"):
-            text = text[:-3].strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        return json.loads(text[start : end + 1])
-    return json.loads(text)
+def _execute_tool_call(
+    db,
+    name: str,
+    args: dict[str, Any],
+    ctx: dict[str, Any],
+    custom_cache: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    if name == "search_catalog_recipes":
+        return tool_search_catalog_recipes(
+            db,
+            query=str(args.get("query", "")),
+            max_minutes=args.get("max_minutes"),
+            exclude_ingredients=args.get("exclude_ingredients") or ctx.get("excluded"),
+            required_tags=args.get("required_tags"),
+            pantry=ctx.get("pantry"),
+            servings=int(ctx.get("servings") or 2),
+            shown=ctx.get("shown"),
+        )
+    if name == "get_available_ingredients":
+        return tool_get_available_ingredients(db, category=str(args.get("category", "")))
+    if name == "build_custom_recipe":
+        built = tool_build_custom_recipe(
+            db,
+            name=str(args.get("name", "")),
+            minutes=int(args.get("minutes") or 20),
+            emoji=str(args.get("emoji", "🍽️")),
+            tags=args.get("tags"),
+            ingredients=args.get("ingredients") or [],
+            steps=args.get("steps") or [],
+            health_note=str(args.get("health_note", "")),
+            servings=int(ctx.get("servings") or 2),
+            pantry=ctx.get("pantry"),
+        )
+        if built.get("status") == "ok":
+            cid = built["custom_recipe_id"]
+            custom_cache[cid] = built
+            return {
+                "status": "ok",
+                "custom_recipe_id": cid,
+                "estimated_total_vnd": built["estimated_total_vnd"],
+            }
+        return built
+    return {"error": f"Tool '{name}' không tồn tại."}
+
+
+def _post_gemini(url: str, payload: dict[str, Any], timeout: int) -> dict[str, Any]:
+    data = json.dumps(payload).encode("utf-8")
+    headers = {"Content-Type": "application/json", "User-Agent": "BuaNha-Demo/1.5"}
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 def call_gemini(
@@ -142,35 +456,20 @@ def call_gemini(
     prompt: str,
     context: dict[str, Any],
     candidates_text: str = "",
-    timeout: int = 6,
+    db=None,
+    timeout: int = 7,
 ) -> dict[str, Any] | None:
     global ACTIVE_WORKING_MODEL
     clean_key = api_key.strip().strip('"').strip("'")
     if not clean_key:
         return None
 
-    payload = {
-        "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
-        "contents": [
-            {
-                "role": "user",
-                "parts": [
-                    {
-                        "text": (
-                            f"{candidates_text}\n\n"
-                            f"Ngữ cảnh hội thoại trước đó: {json.dumps(context, ensure_ascii=False)}\n\n"
-                            f"Tin nhắn người dùng: {prompt}"
-                        )
-                    }
-                ],
-            }
-        ],
-        "generationConfig": {"temperature": 0.55, "responseMimeType": "application/json"},
-    }
-    data = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json", "User-Agent": "BuaNha-Demo/1.0"}
+    user_text = (
+        f"{candidates_text}\n\n"
+        f"Ngữ cảnh hội thoại trước đó: {json.dumps(context, ensure_ascii=False)}\n\n"
+        f"Tin nhắn người dùng: {prompt}"
+    )
 
-    # Try pinned active working model first (instant 1-hop), followed by alternate fast flash models
     candidate_list = [ACTIVE_WORKING_MODEL]
     for m_cand in FAST_MODELS:
         if m_cand not in candidate_list:
@@ -178,13 +477,66 @@ def call_gemini(
 
     for m, ver in candidate_list:
         url = f"https://generativelanguage.googleapis.com/{ver}/models/{m}:generateContent?key={clean_key}"
-        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        contents: list[dict[str, Any]] = [{"role": "user", "parts": [{"text": user_text}]}]
+        custom_cache: dict[str, dict[str, Any]] = {}
+
+        # Run bounded agentic tool-calling loop when db is available; fallback to single-shot JSON on 400.
+        use_tools = db is not None
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                res_data = json.loads(resp.read().decode("utf-8"))
-                text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-                parsed = extract_json(text)
-                # Success: Pin this model for all future calls!
+            for _round in range(4 if use_tools else 1):
+                payload: dict[str, Any] = {
+                    "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
+                    "contents": contents,
+                    "generationConfig": {"temperature": 0.55},
+                }
+                if use_tools and _round < 3:
+                    payload["tools"] = [{"functionDeclarations": GEMINI_TOOLS}]
+                else:
+                    payload["generationConfig"]["responseMimeType"] = "application/json"
+
+                try:
+                    res_data = _post_gemini(url, payload, timeout=timeout)
+                except urllib.error.HTTPError as e:
+                    err_body = e.read().decode("utf-8", errors="ignore")
+                    if e.code == 400 and use_tools:
+                        # Model endpoint rejected tool declarations; retry cleanly with JSON mode once.
+                        use_tools = False
+                        payload.pop("tools", None)
+                        payload["generationConfig"]["responseMimeType"] = "application/json"
+                        res_data = _post_gemini(url, payload, timeout=timeout)
+                    else:
+                        logger.warning("Gemini API (%s/%s) HTTPError %d: %s", ver, m, e.code, err_body[:100])
+                        LAST_STATUS.update(
+                            {
+                                "status": "error",
+                                "model": m,
+                                "version": ver,
+                                "code": e.code,
+                                "error": err_body[:200],
+                            }
+                        )
+                        raise
+
+                cand = res_data.get("candidates", [{}])[0]
+                model_content = cand.get("content", {})
+                parts = model_content.get("parts", [])
+                fn_calls = [p["functionCall"] for p in parts if "functionCall" in p]
+
+                if fn_calls and db is not None and _round < 3:
+                    contents.append({"role": "model", "parts": parts})
+                    fn_responses = []
+                    for fc in fn_calls:
+                        fn_name = fc.get("name", "")
+                        fn_args = fc.get("args") or {}
+                        out = _execute_tool_call(db, fn_name, fn_args, context, custom_cache)
+                        fn_responses.append({"functionResponse": {"name": fn_name, "response": out}})
+                    contents.append({"role": "user", "parts": fn_responses})
+                    continue
+
+                raw_text = "".join(p.get("text", "") for p in parts)
+                parsed = extract_json(raw_text)
+                if custom_cache:
+                    parsed["_custom_recipes"] = custom_cache
                 ACTIVE_WORKING_MODEL = (m, ver)
                 LAST_STATUS.update(
                     {
@@ -192,16 +544,11 @@ def call_gemini(
                         "model": m,
                         "version": ver,
                         "error": None,
-                        "last_response_preview": parsed.get("message", "")[:100],
+                        "last_response_preview": str(parsed.get("message", ""))[:100],
                     }
                 )
                 return parsed
-        except urllib.error.HTTPError as e:
-            err_body = e.read().decode("utf-8", errors="ignore")
-            logger.warning("Gemini API (%s/%s) HTTPError %d: %s", ver, m, e.code, err_body[:100])
-            LAST_STATUS.update(
-                {"status": "error", "model": m, "version": ver, "code": e.code, "error": err_body[:200]}
-            )
+        except urllib.error.HTTPError:
             continue
         except Exception as e:
             logger.warning("Gemini API (%s/%s) failed (%s)", ver, m, e)
@@ -240,7 +587,7 @@ def resolve_meal(raw_key: str) -> dict[str, Any] | None:
 
 
 class GeminiProvider:
-    """Combines Google Gemini Flash NLU with deterministic pricing and allergy safety."""
+    """Combines Google Gemini Agentic Tool Use with deterministic pricing and safety."""
 
     def __init__(self, api_key: str, model: str = "gemini-flash-lite-latest"):
         self.api_key = api_key
@@ -265,19 +612,18 @@ class GeminiProvider:
                 ),
                 "suggestions": [],
                 "products": [],
+                "health_advisory": None,
                 "context": ctx,
             }
 
-        # Build SQL Pre-filtered candidate list before calling Gemini
         candidates_text = build_dynamic_candidates(db, content, ctx, limit=25)
-        llm_data = call_gemini(self.api_key, self.model, content, ctx, candidates_text=candidates_text)
+        llm_data = call_gemini(self.api_key, self.model, content, ctx, candidates_text=candidates_text, db=db)
         if not llm_data:
             res = self.fallback.recommend(db, content, context)
             if LAST_STATUS.get("error"):
                 res["gemini_error"] = LAST_STATUS["error"]
             return res
 
-        # Parse extracted constraints
         changing = "doi" in text or "khong thich" in text or "mon khac" in text
         if isinstance(llm_data.get("servings"), (int, float)) and llm_data["servings"] >= 1:
             ctx["servings"] = min(6, max(1, int(llm_data["servings"])))
@@ -303,17 +649,19 @@ class GeminiProvider:
         intent = llm_data.get("intent", "dish")
         if any(kw in text for kw in ("mam com", "combo", "ca bua", "nhieu mon")):
             intent = "meal"
-        ai_message = llm_data.get("message", "").strip()
+        ai_message = str(llm_data.get("message", "")).strip()
+        raw_advisory = llm_data.get("health_advisory")
+        health_advisory = str(raw_advisory).strip() if raw_advisory else None
 
         result = {
             "mode": "gemini",
             "message": ai_message or "Dưới đây là gợi ý bữa cơm nhà vừa vặn nhất cho bạn:",
             "suggestions": [],
             "products": [],
+            "health_advisory": health_advisory,
             "context": ctx,
         }
 
-        # Intent: direct raw products
         if intent == "products" and llm_data.get("selected_product_ids"):
             products = []
             for raw_pid in llm_data["selected_product_ids"]:
@@ -324,18 +672,36 @@ class GeminiProvider:
                 result["products"] = products
                 return result
 
-        # Intent: dish / meal suggestions
+        custom_cache: dict[str, dict[str, Any]] = llm_data.get("_custom_recipes") or {}
         selected_ids = llm_data.get("selected_ids", [])
 
         for raw_id in selected_ids:
-            meal = resolve_meal(raw_id)
+            sid = str(raw_id).strip()
+            if sid in custom_cache:
+                built = custom_cache[sid]
+                custom_recipe = built["recipe"]
+                result["suggestions"].append(
+                    {
+                        "id": sid,
+                        "name": custom_recipe["name"],
+                        "recipes": [custom_recipe],
+                        "selections": [built["selection"]],
+                        "total": built["estimated_total_vnd"],
+                        "minutes": custom_recipe["minutes"],
+                        "servings": ctx["servings"],
+                        "reason": custom_recipe["description"],
+                    }
+                )
+                continue
+
+            meal = resolve_meal(sid)
             if meal:
                 key, title = meal["id"], meal["name"]
                 if changing and key in ctx.get("shown", []):
                     continue
                 dishes = [db.get(Recipe, rid) for rid in meal["recipe_ids"] if db.get(Recipe, rid)]
             else:
-                recipe = resolve_recipe(db, raw_id)
+                recipe = resolve_recipe(db, sid)
                 if not recipe:
                     continue
                 key, title = recipe.id, recipe.name
@@ -389,6 +755,23 @@ class GeminiProvider:
                 }
             )
 
+        # Guarantee custom recipes created during tool calling are surfaced if Gemini omitted IDs
+        if not result["suggestions"] and custom_cache:
+            for sid, built in list(custom_cache.items())[:3]:
+                custom_recipe = built["recipe"]
+                result["suggestions"].append(
+                    {
+                        "id": sid,
+                        "name": custom_recipe["name"],
+                        "recipes": [custom_recipe],
+                        "selections": [built["selection"]],
+                        "total": built["estimated_total_vnd"],
+                        "minutes": custom_recipe["minutes"],
+                        "servings": ctx["servings"],
+                        "reason": custom_recipe["description"],
+                    }
+                )
+
         if not result["suggestions"] and intent == "meal":
             for meal in MEALS:
                 dishes = [db.get(Recipe, rid) for rid in meal["recipe_ids"] if db.get(Recipe, rid)]
@@ -439,7 +822,6 @@ class GeminiProvider:
                 dict.fromkeys(ctx.get("shown", []) + [s["id"] for s in result["suggestions"]])
             )[-30:]
         else:
-            # If candidate items could not satisfy constraints, get rule suggestions while keeping Gemini message
             fallback_res = self.fallback.recommend(db, content, context)
             result["suggestions"] = fallback_res["suggestions"]
             result["products"] = fallback_res["products"]

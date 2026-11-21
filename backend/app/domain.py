@@ -75,42 +75,24 @@ def recipe_data(db, recipe, detail=False):
     return data
 
 
-def recipe_quote(db, selections):
-    totals = {}
-    seen_recipes = set()
-    for selection in selections:
-        rid = selection.recipe_id
-        recipe = db.get(Recipe, rid)
-        if not recipe or rid in seen_recipes:
-            raise DomainError("INVALID_RECIPE", "Món không hợp lệ hoặc bị chọn lặp.")
-        seen_recipes.add(rid)
-        rows = {
-            r.ingredient_id: r
-            for r in db.scalars(select(RecipeIngredient).where(RecipeIngredient.recipe_id == rid))
-        }
-        factors = {}
-        if selection.variant_id:
-            variant = db.get(RecipeVariant, selection.variant_id)
-            if not variant or variant.recipe_id != rid:
-                raise DomainError("INVALID_VARIANT", "Biến thể không thuộc món đã chọn.")
-            factors = variant.quantity_factors
-        for iid in set(selection.ingredient_ids):
-            if iid not in rows:
-                raise DomainError("INVALID_INGREDIENT", "Nguyên liệu không thuộc công thức.")
-            amount = Fraction(rows[iid].quantity * selection.servings, recipe.servings)
-            amount *= Fraction(str(factors.get(iid, 1)))
-            totals[iid] = totals.get(iid, Fraction(0)) + amount
+def _aggregate_totals_to_quote(db, totals):
     # Aggregate mapped demand by SKU before pack rounding, including aliases to the same product.
     by_product, missing = {}, []
     for iid, required in totals.items():
         ingredient = db.get(Ingredient, iid)
         mapping = db.get(IngredientProductMapping, iid)
         product = db.get(Product, mapping.product_id) if mapping else None
-        if not product or not product.available or product.unit != ingredient.unit or mapping.factor <= 0:
+        if (
+            not ingredient
+            or not product
+            or not product.available
+            or product.unit != ingredient.unit
+            or mapping.factor <= 0
+        ):
             missing.append(
                 {
                     "ingredient_id": iid,
-                    "name": ingredient.name,
+                    "name": ingredient.name if ingredient else iid,
                     "reason": "Chưa có sản phẩm phù hợp trong danh mục mẫu.",
                 }
             )
@@ -147,6 +129,46 @@ def recipe_quote(db, selections):
         "total": sum(x["subtotal"] for x in lines),
         "sample_prices": True,
     }
+
+
+def recipe_quote(db, selections):
+    totals = {}
+    seen_recipes = set()
+    for selection in selections:
+        rid = selection.recipe_id
+        recipe = db.get(Recipe, rid)
+        if not recipe or rid in seen_recipes:
+            raise DomainError("INVALID_RECIPE", "Món không hợp lệ hoặc bị chọn lặp.")
+        seen_recipes.add(rid)
+        rows = {
+            r.ingredient_id: r
+            for r in db.scalars(select(RecipeIngredient).where(RecipeIngredient.recipe_id == rid))
+        }
+        factors = {}
+        if selection.variant_id:
+            variant = db.get(RecipeVariant, selection.variant_id)
+            if not variant or variant.recipe_id != rid:
+                raise DomainError("INVALID_VARIANT", "Biến thể không thuộc món đã chọn.")
+            factors = variant.quantity_factors
+        for iid in set(selection.ingredient_ids):
+            if iid not in rows:
+                raise DomainError("INVALID_INGREDIENT", "Nguyên liệu không thuộc công thức.")
+            amount = Fraction(rows[iid].quantity * selection.servings, recipe.servings)
+            amount *= Fraction(str(factors.get(iid, 1)))
+            totals[iid] = totals.get(iid, Fraction(0)) + amount
+    return _aggregate_totals_to_quote(db, totals)
+
+
+def custom_recipe_quote(db, servings: int, base_servings: int, ingredients):
+    totals = {}
+    for line in ingredients:
+        iid = line.ingredient_id if hasattr(line, "ingredient_id") else line["ingredient_id"]
+        qty = line.quantity if hasattr(line, "quantity") else line["quantity"]
+        if not db.get(Ingredient, iid):
+            raise DomainError("INVALID_INGREDIENT", f"Nguyên liệu '{iid}' không có trong danh mục.")
+        amount = Fraction(str(qty)) * Fraction(servings, base_servings)
+        totals[iid] = totals.get(iid, Fraction(0)) + amount
+    return _aggregate_totals_to_quote(db, totals)
 
 
 def cart_data(db, sid):

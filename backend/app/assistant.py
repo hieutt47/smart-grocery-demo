@@ -23,7 +23,14 @@ class RuleBasedProvider:
     def recommend(self, db, content, context):
         text = normalize(content)
         ctx = {"servings": 2, "budget": None, "minutes": None, "excluded": [], "shown": [], **context}
-        result = {"mode": "rules", "message": "", "suggestions": [], "products": [], "context": ctx}
+        result = {
+            "mode": "rules",
+            "message": "",
+            "suggestions": [],
+            "products": [],
+            "health_advisory": None,
+            "context": ctx,
+        }
         budget = re.search(r"(\d+(?:[.,]\d+)?)\s*(k|nghin|ngan|trieu|vnd|dong|đ)\b", text)
         if budget:
             number = float(budget[1].replace(",", "."))

@@ -18,6 +18,7 @@ from .domain import (
     OFFSETS,
     DomainError,
     cart_data,
+    custom_recipe_quote,
     delivery_data,
     fingerprint,
     iso,
@@ -48,6 +49,7 @@ from .schemas import (
     AssistantInput,
     CartLine,
     CartPatch,
+    CustomRecipeQuoteInput,
     DeliveryInput,
     EventInput,
     OrderInput,
@@ -299,6 +301,10 @@ def create_app(database_url=None, clock=None):
     @app.post("/api/v1/recipe-quotes")
     def get_recipe_quote(body: RecipeQuoteInput, db=Depends(database, scope="function")):
         return recipe_quote(db, body.selections)
+
+    @app.post("/api/v1/custom-recipe-quote")
+    def get_custom_recipe_quote(body: CustomRecipeQuoteInput, db=Depends(database, scope="function")):
+        return custom_recipe_quote(db, body.servings, body.base_servings, body.ingredients)
 
     @app.get("/api/v1/cart")
     def get_cart(s=Depends(session), db=Depends(database, scope="function")):

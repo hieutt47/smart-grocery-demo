@@ -19,6 +19,17 @@ class RecipeQuoteInput(Input):
     selections: list[RecipeSelection] = Field(min_length=1, max_length=3)
 
 
+class CustomIngredientLine(Input):
+    ingredient_id: str = Field(max_length=80)
+    quantity: float = Field(gt=0, le=5000)
+
+
+class CustomRecipeQuoteInput(Input):
+    servings: int = Field(ge=1, le=6, default=2)
+    base_servings: int = Field(ge=1, le=6, default=2)
+    ingredients: list[CustomIngredientLine] = Field(min_length=1, max_length=25)
+
+
 class CartLine(Input):
     product_id: str = Field(max_length=80)
     quantity: int = Field(ge=0, le=99)
