@@ -15,6 +15,7 @@ export default defineConfig({
   webServer: {
     command: 'node ../scripts/e2e-server.mjs',
     url: 'http://127.0.0.1:8001/api/v1/health',
+    env: {DISABLE_LIVE_GEMINI: '1'},
     reuseExistingServer: !process.env.CI,
     timeout: 60000,
   },

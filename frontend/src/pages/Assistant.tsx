@@ -1,13 +1,22 @@
 import {useEffect, useRef, useState} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
-import {ArrowRight, Bot, ChefHat, Clock3, Dices, Heart, HeartPulse, RotateCcw, Send, Share2, Sparkles} from 'lucide-react';
+import {ArrowRight, Bot, Brain, ChefHat, Clock3, Dices, Heart, HeartPulse, RotateCcw, Send, Share2, Sparkles, X} from 'lucide-react';
 import {api, money, trackEvent} from '../api';
 import {useResource, useStore} from '../context';
 import {LoadState, PageTitle, PantryModal} from '../components';
 import {OFFICE_LUNCH_OPTIONS} from '../nutrition';
 import {getPantryStaples, subscribePantry} from '../pantry';
 import {RecipeVisual} from '../recipe-art';
-import type {AssistantResult, ChatMessage, Conversation, Recipe} from '../types';
+import type {ActiveMemory, AssistantResult, ChatMessage, Conversation, Recipe} from '../types';
+
+const ALLERGEN_LABELS: Record<string, string> = {
+  shellfish: 'Tôm / Hải sản',
+  fish: 'Cá / Nước mắm',
+  egg: 'Trứng',
+  soy: 'Đậu nành / Đậu hũ',
+  wheat: 'Lúa mì',
+  sesame: 'Mè / Vừng'
+};
 
 const CUSTOM_RECIPES_KEY = 'bua_nha_custom_recipes';
 
@@ -45,6 +54,7 @@ export function Assistant() {
   const [pantryIds, setPantryIds] = useState<string[]>(getPantryStaples());
   const [mode, setMode] = useState<'cook' | 'lunch'>(() => (searchParams.get('mode') === 'lunch' ? 'lunch' : 'cook'));
   const [lunchSeed, setLunchSeed] = useState(0);
+  const [memory, setMemory] = useState<ActiveMemory | null>(null);
   const {ready, isSaved, toggleSave, shareItem} = useStore();
   const bottom = useRef<HTMLDivElement>(null);
   const sentQueryRef = useRef<string | null>(null);
@@ -55,6 +65,9 @@ export function Assistant() {
     if (resource.data) {
       setMessages(resource.data.messages);
       setConversationId(resource.data.id);
+      if (resource.data.context?.memory) {
+        setMemory(resource.data.context.memory);
+      }
     }
   }, [resource.data]);
 
@@ -95,6 +108,9 @@ export function Assistant() {
       });
       setMessages(prev => [...prev, {role: 'user', content}, {role: 'assistant', result}]);
       setConversationId(result.conversation_id);
+      if (result.context?.memory) {
+        setMemory(result.context.memory);
+      }
       if (content === input) {
         setInput('');
       }
@@ -116,12 +132,40 @@ export function Assistant() {
       resource.setData(null);
       setMessages([]);
       setConversationId(null);
+      setMemory(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setSending(false);
     }
   }
+
+  async function removeMemoryChip(category: string, value: string) {
+    try {
+      const res = await api<{memory: ActiveMemory}>(
+        `/assistant/memory?category=${encodeURIComponent(category)}&value=${encodeURIComponent(value)}`,
+        'DELETE'
+      );
+      setMemory(res.memory);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  const memoryChips: {category: string; value: string; label: string}[] = memory
+    ? [
+        ...(memory.health_conditions || []).map(v => ({category: 'health_conditions', value: v, label: `Sức khỏe: ${v}`})),
+        ...(memory.pregnancy ? [{category: 'pregnancy', value: 'true', label: 'Đang mang thai'}] : []),
+        ...(memory.allergies || []).map(v => ({
+          category: 'allergies',
+          value: v,
+          label: `Dị ứng: ${ALLERGEN_LABELS[v] || v}`
+        })),
+        ...(memory.dislikes || []).map(v => ({category: 'dislikes', value: v, label: `Tránh: ${v}`})),
+        ...(memory.diet_goals || []).map(v => ({category: 'diet_goals', value: v, label: `Mục tiêu: ${v}`})),
+        ...(memory.fridge_items || []).map(v => ({category: 'fridge_items', value: v, label: `Tủ lạnh: ${v}`}))
+      ]
+    : [];
 
   return (
     <>
@@ -245,7 +289,7 @@ export function Assistant() {
                       </div>
                       <p className="suggestion-summary">{item.tag} · {item.note}</p>
                       <div className="suggestion-footer-row">
-                        <strong className="suggestion-price">~{money(item.price)}</strong>
+                        <strong className="suggestion-price">≈ {money(item.price)}</strong>
                         <button
                           type="button"
                           className="button primary small-button"
@@ -297,6 +341,28 @@ export function Assistant() {
               </button>
             </div>
           </div>
+
+          {memoryChips.length > 0 && (
+            <div className="memory-chips-bar" aria-label="Thông tin trợ lý đang ghi nhớ">
+              <span className="memory-bar-label">
+                <Brain size={13} aria-hidden="true" />
+                <span>Đang nhớ:</span>
+              </span>
+              {memoryChips.map(chip => (
+                <span className="memory-chip" key={`${chip.category}-${chip.value}`}>
+                  <span>{chip.label}</span>
+                  <button
+                    type="button"
+                    className="memory-chip-remove"
+                    aria-label={`Quên ${chip.label}`}
+                    onClick={() => void removeMemoryChip(chip.category, chip.value)}
+                  >
+                    <X size={11} aria-hidden="true" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
 
           <LoadState {...resource} />
 
@@ -369,7 +435,7 @@ export function Assistant() {
                           </p>
 
                           <div className="suggestion-footer-row">
-                            <strong className="suggestion-price">~{money(s.total)}</strong>
+                            <strong className="suggestion-price">≈ {money(s.total)}</strong>
                             <div className="suggestion-actions-group">
                               {s.recipes[0] && !s.recipes[0].is_custom && !s.recipes[0].id.startsWith('custom-') && (
                                 <button
@@ -408,6 +474,38 @@ export function Assistant() {
                                 <ArrowRight size={13} aria-hidden="true" />
                               </Link>
                             </div>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+
+                    {(m.result.lunch_suggestions || []).map(item => (
+                      <article className="suggestion-card" key={item.id}>
+                        <div className="suggestion-thumb lunch-emoji-thumb" aria-hidden="true">
+                          <span>{item.emoji}</span>
+                        </div>
+                        <div className="suggestion-info">
+                          <div className="suggestion-header-row">
+                            <h3 className="suggestion-title">{item.name}</h3>
+                            <span className="suggestion-time-badge">~{item.kcal} kcal</span>
+                          </div>
+                          <p className="suggestion-summary">{item.tag} · {item.note}</p>
+                          <div className="suggestion-footer-row">
+                            <strong className="suggestion-price">≈ {money(item.price)}</strong>
+                            <button
+                              type="button"
+                              className="button primary small-button"
+                              onClick={() =>
+                                void shareItem(
+                                  `Trưa nay ăn ${item.name} không cả nhà?`,
+                                  `Tầm ${money(item.price)} · ~${item.kcal} kcal · ${item.tag}`,
+                                  '/assistant?mode=lunch'
+                                )
+                              }
+                            >
+                              <Share2 size={14} aria-hidden="true" />
+                              <span>Rủ đồng nghiệp</span>
+                            </button>
                           </div>
                         </div>
                       </article>

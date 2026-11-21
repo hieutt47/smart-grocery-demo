@@ -142,14 +142,33 @@ def test_gemini_provider_success(system):
 
 
 def test_gemini_provider_allergy_safety(system):
+    from unittest.mock import patch
+
     from backend.app.gemini import GeminiProvider
 
     app, _, _ = system
     with app.state.factory.begin() as db:
         provider = GeminiProvider(api_key="fake-key")
-        result = provider.recommend(db, "tôi dị ứng tôm, ăn gì?", {})
-        assert result["mode"] == "gemini"
-        assert result["suggestions"] == []
+        # Untracked high-risk allergen (peanuts) must still trigger deterministic refusal
+        peanuts = provider.recommend(db, "tôi dị ứng đậu phộng, ăn gì?", {})
+        assert peanuts["mode"] == "gemini"
+        assert peanuts["suggestions"] == []
+
+        # Tracked DB allergen (shrimp -> shellfish) records into memory and filters unsafe picks
+        mock_llm = {
+            "message": "Mình đã ghi nhận dị ứng hải sản và gợi ý món an toàn nhé.",
+            "intent": "dish",
+            "selected_ids": ["tom-rim-man-ngot", "ga-rang-gung"],
+            "servings": 2,
+            "excluded": [],
+            "lighter": False,
+        }
+        with patch("backend.app.gemini.call_gemini", return_value=mock_llm):
+            shrimp = provider.recommend(db, "tôi dị ứng tôm, ăn gì?", {})
+            assert "shellfish" in shrimp["context"]["memory"]["allergies"]
+            assert shrimp["health_advisory"]
+            # tom-rim-man-ngot must be filtered out while ga-rang-gung passes safely
+            assert [s["id"] for s in shrimp["suggestions"]] == ["ga-rang-gung"]
 
 
 def test_agent_tools_search_and_ingredients(system):
@@ -274,3 +293,80 @@ def test_gemini_provider_forwards_chat_history_without_persisting(system):
             assert captured["history"] == [{"role": "user", "text": "Nhà tôi có người bị đau tim"}]
             assert "history" not in result["context"]
             assert result["suggestions"][0]["id"] == "ca-basa-hap-gung"
+
+
+def test_dual_memory_persists_across_many_turns_and_office_lunch_tool(system):
+    from unittest.mock import patch
+
+    from backend.app.gemini import GeminiProvider, tool_search_office_lunch
+
+    app, c, _ = system
+    lunch_res = tool_search_office_lunch(max_price=55000, eat_clean_only=True)
+    assert lunch_res["count"] >= 1
+    assert all(x["price"] <= 55000 for x in lunch_res["lunches"])
+
+    with app.state.factory.begin() as db:
+        provider = GeminiProvider(api_key="fake-key")
+        turn1_llm = {
+            "message": "Đã ghi nhận tim mạch!",
+            "intent": "dish",
+            "selected_ids": ["ca-basa-hap-gung"],
+            "servings": 2,
+            "memory_updates": {"add": {"health_conditions": ["tim mạch"], "diet_goals": ["ít muối"]}},
+        }
+        with patch("backend.app.gemini.call_gemini", return_value=turn1_llm):
+            r1 = provider.recommend(db, "Nhà có người đau tim", {})
+            ctx = r1["context"]
+        assert "tim mạch" in ctx["memory"]["health_conditions"]
+
+        # Simulate 12 subsequent turns -> memory must remain intact
+        for idx in range(12):
+            turn_n_llm = {
+                "message": f"Gợi ý lượt {idx}",
+                "intent": "dish",
+                "selected_ids": ["uc-ga-ap-chao-bong-cai"],
+                "servings": 2,
+            }
+            with patch("backend.app.gemini.call_gemini", return_value=turn_n_llm):
+                rn = provider.recommend(db, "Đổi món khác", ctx)
+                ctx = rn["context"]
+        assert "tim mạch" in ctx["memory"]["health_conditions"]
+        assert "ít muối" in ctx["memory"]["diet_goals"]
+
+        # Office lunch intent inside chat
+        lunch_llm = {
+            "message": "Trưa nay ăn nhẹ nhàng ngoài quán nhé!",
+            "intent": "office_lunch",
+            "selected_lunch_ids": ["lunch-salad-uc-ga"],
+            "servings": 1,
+        }
+        with patch("backend.app.gemini.call_gemini", return_value=lunch_llm):
+            rl = provider.recommend(db, "Trưa ăn ngoài văn phòng gì nhẹ bụng?", ctx)
+            assert rl["lunch_suggestions"][0]["id"] == "lunch-salad-uc-ga"
+
+
+def test_custom_recipe_persists_in_db_for_sharing(system):
+    from backend.app.gemini import tool_build_custom_recipe
+
+    app, c, _ = system
+    with app.state.factory.begin() as db:
+        built = tool_build_custom_recipe(
+            db,
+            name="Ức gà hấp bí đỏ ít muối",
+            minutes=15,
+            ingredients=[
+                {"ingredient_id": "chicken-breast", "quantity": 250},
+                {"ingredient_id": "pumpkin", "quantity": 200},
+            ],
+            steps=["Hấp chín ức gà và bí đỏ 12 phút."],
+        )
+        cid = built["custom_recipe_id"]
+        assert built["estimated_kcal"] > 0
+
+    # New anonymous client without cookies can still open the shared custom recipe URL
+    c.cookies.clear()
+    res = c.get(f"/api/v1/recipes/{cid}")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_custom"] is True
+    assert data["estimated_kcal"] > 0

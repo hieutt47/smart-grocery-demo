@@ -79,6 +79,34 @@ def test_custom_recipe_quote_endpoint(client):
     assert bad.status_code == 400
 
 
+def test_assistant_memory_delete_endpoint(client):
+    first = client.post("/api/v1/assistant/messages", json={"content": "100k cho 2 người"}).json()
+    assert first["conversation_id"]
+    from backend.app.models import Conversation
+
+    # Seed a memory fact directly on the session conversation and test deleting it
+    app = client.app
+    with app.state.factory.begin() as db:
+        conv = db.get(Conversation, first["conversation_id"])
+        conv.context = {
+            **conv.context,
+            "memory": {
+                "health_conditions": ["tim mạch"],
+                "pregnancy": True,
+                "allergies": ["shellfish"],
+                "dislikes": ["onion"],
+                "diet_goals": [],
+                "fridge_items": [],
+            },
+        }
+    res1 = client.delete("/api/v1/assistant/memory?category=health_conditions&value=tim%20m%E1%BA%A1ch")
+    assert res1.status_code == 200
+    assert res1.json()["memory"]["health_conditions"] == []
+    res2 = client.delete("/api/v1/assistant/memory?category=pregnancy&value=true")
+    assert res2.status_code == 200
+    assert res2.json()["memory"]["pregnancy"] is False
+
+
 def test_search(client):
     assert client.get("/api/v1/products?q=thit%20bo").json()[0]["id"] == "beef"
     assert client.get("/api/v1/products?q=zzzz").json() == []

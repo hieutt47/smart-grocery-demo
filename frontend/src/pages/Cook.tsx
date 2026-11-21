@@ -62,14 +62,15 @@ export function Cook() {
     }
     Promise.all(
       key.split(',').map(async id => {
-        if (id.startsWith('custom-')) {
-          const custom = loadCustomRecipe(id, stateData?.customRecipes);
-          if (!custom) {
-            throw new Error('Công thức AI thiết kế riêng chỉ lưu tạm trong phiên tạo ra nó.');
+        try {
+          return await api<Recipe>(`/recipes/${id}`, 'GET', undefined, controller.signal);
+        } catch (err) {
+          if (id.startsWith('custom-')) {
+            const custom = loadCustomRecipe(id, stateData?.customRecipes);
+            if (custom) return custom;
           }
-          return custom;
+          throw err;
         }
-        return api<Recipe>(`/recipes/${id}`, 'GET', undefined, controller.signal);
       })
     )
       .then(rows => {
@@ -452,7 +453,7 @@ export function Cook() {
               </div>
               {recipes.length > 0 && (
                 <p className="small muted" style={{margin: '-8px 0 14px'}}>
-                  Năng lượng ước tính: ~{recipes.reduce((sum, r) => sum + getRecipeNutrition(r.id).kcal, 0)} kcal / người
+                  Năng lượng ước tính: ~{recipes.reduce((sum, r) => sum + (r.estimated_kcal ?? getRecipeNutrition(r.id).kcal), 0)} kcal / người
                 </p>
               )}
 
