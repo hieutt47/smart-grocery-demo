@@ -165,3 +165,19 @@ class AnalyticsEvent(Base):
     event_name: Mapped[str] = mapped_column(String, index=True)
     target_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[int] = mapped_column(Integer, index=True)
+
+
+class CustomRecipe(Base):
+    __tablename__ = "custom_recipes"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str]
+    description: Mapped[str]
+    minutes: Mapped[int]
+    servings: Mapped[int] = mapped_column(default=2)
+    emoji: Mapped[str]
+    color: Mapped[str]
+    tags: Mapped[list] = mapped_column(JSON)
+    ingredients: Mapped[list] = mapped_column(JSON)
+    steps: Mapped[list] = mapped_column(JSON)
+    estimated_kcal: Mapped[int] = mapped_column(default=300)
+    created_at: Mapped[int] = mapped_column(Integer, index=True)

@@ -35,6 +35,7 @@ from .models import (
     CartItem,
     CheckoutQuote,
     Conversation,
+    CustomRecipe,
     DeliverySimulation,
     DemoSession,
     Order,
@@ -294,9 +295,27 @@ def create_app(database_url=None, clock=None):
     @app.get("/api/v1/recipes/{rid}")
     def recipe(rid: str, db=Depends(database, scope="function")):
         r = db.get(Recipe, rid)
-        if not r:
-            raise DomainError("NOT_FOUND", "Không tìm thấy món.", 404)
-        return recipe_data(db, r, True)
+        if r:
+            return recipe_data(db, r, True)
+        cr = db.get(CustomRecipe, rid)
+        if cr:
+            return {
+                "id": cr.id,
+                "name": cr.name,
+                "description": cr.description,
+                "minutes": cr.minutes,
+                "servings": cr.servings,
+                "emoji": cr.emoji,
+                "color": cr.color,
+                "tags": cr.tags,
+                "source": "Công thức phối hợp bởi Trợ lý AI Bữa Nhà",
+                "is_custom": True,
+                "estimated_kcal": cr.estimated_kcal,
+                "ingredients": cr.ingredients,
+                "steps": cr.steps,
+                "variants": [],
+            }
+        raise DomainError("NOT_FOUND", "Không tìm thấy món.", 404)
 
     @app.post("/api/v1/recipe-quotes")
     def get_recipe_quote(body: RecipeQuoteInput, db=Depends(database, scope="function")):
@@ -484,42 +503,111 @@ def create_app(database_url=None, clock=None):
         db.execute(delete(Conversation).where(Conversation.session_id == s.id))
         return {"deleted": True}
 
+    @app.delete("/api/v1/assistant/memory")
+    def remove_memory_fact(
+        category: str = Query(..., max_length=40),
+        value: str = Query(default="", max_length=80),
+        s=Depends(session),
+        db=Depends(database, scope="function"),
+    ):
+        conversation = db.scalar(select(Conversation).where(Conversation.session_id == s.id))
+        if not conversation:
+            return {"memory": {}}
+        ctx = dict(conversation.context or {})
+        memory = dict(ctx.get("memory") or {})
+        if category == "pregnancy":
+            memory["pregnancy"] = False
+        elif category in memory and isinstance(memory[category], list):
+            memory[category] = [item for item in memory[category] if item != value]
+            if category in {"dislikes", "allergies"}:
+                excluded = set(ctx.get("excluded") or [])
+                excluded.discard(value)
+                ctx["excluded"] = sorted(excluded)
+        ctx["memory"] = memory
+        conversation.context = ctx
+        return {"memory": memory}
+
     @app.post("/api/v1/assistant/messages")
-    def assistant(body: AssistantInput, s=Depends(session), db=Depends(database, scope="function")):
-        limit(db, s.id, "assistant", 20)
-        if body.conversation_id:
-            conversation = db.get(Conversation, body.conversation_id)
-            if not conversation or conversation.session_id != s.id:
-                raise DomainError("NOT_FOUND", "Không tìm thấy hội thoại trong phiên này.", 404)
-        else:
-            conversation = db.scalar(select(Conversation).where(Conversation.session_id == s.id))
-            if not conversation:
-                conversation = Conversation(
-                    id=secrets.token_urlsafe(16), session_id=s.id, context={}, messages=[]
-                )
-                db.add(conversation)
-        if body.pantry:
-            conversation.context = {**conversation.context, "pantry": body.pantry}
-        recent_history = []
-        for msg in conversation.messages[-8:]:
-            if msg.get("role") == "user":
-                recent_history.append({"role": "user", "text": msg.get("content", "")})
-            elif msg.get("role") == "assistant" and isinstance(msg.get("result"), dict):
-                res_obj = msg["result"]
-                sug_names = [s.get("name", "") for s in res_obj.get("suggestions", [])]
-                summary = res_obj.get("message", "")
-                if sug_names:
-                    summary = f"{summary} [Đã gợi ý: {', '.join(sug_names)}]"
-                recent_history.append({"role": "assistant", "text": summary})
-        provider_ctx = {**conversation.context, "history": recent_history}
-        result = get_recommendation_provider().recommend(db, body.content, provider_ctx)
+    def assistant(body: AssistantInput, request: Request):
+        token = request.cookies.get(COOKIE)
+        if not token:
+            raise DomainError("SESSION_REQUIRED", "Bắt đầu phiên demo để tiếp tục.", 401)
+
+        # Phase A: Short write transaction to validate session, rate-limit, and snapshot context
+        with factory.begin() as db:
+            db.execute(text("BEGIN IMMEDIATE"))
+            s = db.get(DemoSession, token)
+            if not s:
+                raise DomainError("SESSION_EXPIRED", "Phiên đã hết hạn hoặc bị xóa.", 401)
+            if s.expires_at <= now():
+                db.delete(s)
+                raise DomainError("SESSION_EXPIRED", "Phiên demo đã hết hạn.", 401)
+            limit(db, s.id, "assistant", 20)
+            if body.conversation_id:
+                conversation = db.get(Conversation, body.conversation_id)
+                if not conversation or conversation.session_id != s.id:
+                    raise DomainError("NOT_FOUND", "Không tìm thấy hội thoại trong phiên này.", 404)
+            else:
+                conversation = db.scalar(select(Conversation).where(Conversation.session_id == s.id))
+                if not conversation:
+                    conversation = Conversation(
+                        id=secrets.token_urlsafe(16), session_id=s.id, context={}, messages=[]
+                    )
+                    db.add(conversation)
+                    db.flush()
+            if body.pantry:
+                conversation.context = {**conversation.context, "pantry": body.pantry}
+            recent_history = []
+            for msg in conversation.messages[-8:]:
+                if msg.get("role") == "user":
+                    recent_history.append({"role": "user", "text": msg.get("content", "")})
+                elif msg.get("role") == "assistant" and isinstance(msg.get("result"), dict):
+                    res_obj = msg["result"]
+                    sug_names = [s_item.get("name", "") for s_item in res_obj.get("suggestions", [])]
+                    summary = res_obj.get("message", "")
+                    if sug_names:
+                        summary = f"{summary} [Đã gợi ý: {', '.join(sug_names)}]"
+                    recent_history.append({"role": "assistant", "text": summary})
+            conv_id = conversation.id
+            provider_ctx = {**conversation.context, "history": recent_history}
+
+        # Phase B: Read-only DB access while calling Gemini (no SQLite write lock held!)
+        with factory() as read_db:
+            result = get_recommendation_provider().recommend(read_db, body.content, provider_ctx)
         result["context"].pop("history", None)
-        result["conversation_id"] = conversation.id
-        conversation.context = result["context"]
-        conversation.messages = (
-            conversation.messages
-            + [{"role": "user", "content": body.content}, {"role": "assistant", "result": result}]
-        )[-20:]
+        result["conversation_id"] = conv_id
+
+        # Phase C: Short write transaction to persist custom recipes and conversation turn
+        with factory.begin() as db:
+            db.execute(text("BEGIN IMMEDIATE"))
+            for sug in result.get("suggestions", []):
+                for r in sug.get("recipes", []):
+                    if (r.get("is_custom") or str(r.get("id", "")).startswith("custom-")) and not db.get(
+                        CustomRecipe, r["id"]
+                    ):
+                        db.add(
+                            CustomRecipe(
+                                id=r["id"],
+                                name=r["name"],
+                                description=r.get("description", ""),
+                                minutes=int(r.get("minutes", 20)),
+                                servings=int(r.get("servings", 2)),
+                                emoji=r.get("emoji", "🍽️"),
+                                color=r.get("color", "green"),
+                                tags=r.get("tags", []),
+                                ingredients=r.get("ingredients", []),
+                                steps=r.get("steps", []),
+                                estimated_kcal=int(r.get("estimated_kcal", 300)),
+                                created_at=now(),
+                            )
+                        )
+            conv = db.get(Conversation, conv_id)
+            if conv:
+                conv.context = result["context"]
+                conv.messages = (
+                    conv.messages
+                    + [{"role": "user", "content": body.content}, {"role": "assistant", "result": result}]
+                )[-20:]
         return result
 
     @app.post("/api/v1/events")
