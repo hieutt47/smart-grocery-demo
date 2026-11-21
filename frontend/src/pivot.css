@@ -325,3 +325,50 @@
   flex-direction: column;
   gap: 12px;
 }
+
+.health-advisory-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-top: 10px;
+  border-radius: 12px;
+  background: #fff8eb;
+  border: 1px solid #eed6a4;
+  color: #6b4c14;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.health-advisory-box svg {
+  color: #b7791f;
+  margin-top: 2px;
+}
+
+.health-advisory-box strong {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+
+.health-advisory-box p {
+  margin: 0 0 4px;
+}
+
+.health-advisory-box small {
+  display: block;
+  font-size: 10px;
+  color: #8c6a2b;
+}
+
+.custom-ai-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(25, 74, 51, 0.9);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+}

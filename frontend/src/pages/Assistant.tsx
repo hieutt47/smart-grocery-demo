@@ -1,13 +1,30 @@
 import {useEffect, useRef, useState} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
-import {ArrowRight, Bot, ChefHat, Clock3, Dices, Heart, RotateCcw, Send, Share2, Sparkles} from 'lucide-react';
+import {ArrowRight, Bot, ChefHat, Clock3, Dices, Heart, HeartPulse, RotateCcw, Send, Share2, Sparkles} from 'lucide-react';
 import {api, money, trackEvent} from '../api';
 import {useResource, useStore} from '../context';
 import {LoadState, PageTitle, PantryModal} from '../components';
 import {OFFICE_LUNCH_OPTIONS} from '../nutrition';
 import {getPantryStaples, subscribePantry} from '../pantry';
 import {RecipeVisual} from '../recipe-art';
-import type {AssistantResult, ChatMessage, Conversation} from '../types';
+import type {AssistantResult, ChatMessage, Conversation, Recipe} from '../types';
+
+const CUSTOM_RECIPES_KEY = 'bua_nha_custom_recipes';
+
+function saveCustomRecipes(recipes: Recipe[]) {
+  const custom = recipes.filter(r => r.is_custom || r.id.startsWith('custom-'));
+  if (!custom.length) return;
+  try {
+    const raw = sessionStorage.getItem(CUSTOM_RECIPES_KEY);
+    const existing: Record<string, Recipe> = raw ? JSON.parse(raw) : {};
+    for (const r of custom) {
+      existing[r.id] = r;
+    }
+    sessionStorage.setItem(CUSTOM_RECIPES_KEY, JSON.stringify(existing));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 const PROMPTS = [
   {label: 'Trưa nay · 50k', text: 'Trưa nay ăn gì nhẹ bụng, tầm 50k cho 1 người?'},
@@ -311,6 +328,17 @@ export function Assistant() {
                       <p>{m.result.message}</p>
                     </div>
 
+                    {m.result.health_advisory && (
+                      <div className="health-advisory-box" role="note">
+                        <HeartPulse size={17} aria-hidden="true" />
+                        <div>
+                          <strong>Lưu ý dinh dưỡng & chế biến</strong>
+                          <p>{m.result.health_advisory}</p>
+                          <small>Thông tin tham khảo phổ thông, không thay thế tư vấn bác sĩ điều trị.</small>
+                        </div>
+                      </div>
+                    )}
+
                     {m.result.suggestions.map(s => (
                       <article className="suggestion-card" key={s.id}>
                         <div className="suggestion-thumb">
@@ -319,6 +347,9 @@ export function Assistant() {
                           )}
                           {s.recipes.length > 1 && (
                             <span className="suggestion-combo-badge">Combo {s.recipes.length} món</span>
+                          )}
+                          {s.recipes.some(r => r.is_custom || r.id.startsWith('custom-')) && (
+                            <span className="custom-ai-badge">✨ AI thiết kế riêng</span>
                           )}
                         </div>
 
@@ -340,7 +371,7 @@ export function Assistant() {
                           <div className="suggestion-footer-row">
                             <strong className="suggestion-price">~{money(s.total)}</strong>
                             <div className="suggestion-actions-group">
-                              {s.recipes[0] && (
+                              {s.recipes[0] && !s.recipes[0].is_custom && !s.recipes[0].id.startsWith('custom-') && (
                                 <button
                                   type="button"
                                   className={`icon-chip-btn ${isSaved(s.recipes[0].id) ? 'saved' : ''}`}
@@ -369,6 +400,8 @@ export function Assistant() {
                                 to={`/cook?ids=${s.recipes.map(r => r.id).join(',')}&servings=${s.servings}${
                                   s.selections.some(x => x.variant_id) ? '&lighter=1' : ''
                                 }`}
+                                state={{customRecipes: s.recipes.filter(r => r.is_custom || r.id.startsWith('custom-'))}}
+                                onClick={() => saveCustomRecipes(s.recipes)}
                                 aria-label="Chọn món này"
                               >
                                 <span>Xem công thức</span>

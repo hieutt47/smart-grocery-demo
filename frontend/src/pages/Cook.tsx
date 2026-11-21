@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react';
-import {Link, useNavigate, useSearchParams} from 'react-router-dom';
+import {Link, useLocation, useNavigate, useSearchParams} from 'react-router-dom';
 import {ArrowLeft, ChefHat, Clock3, Copy, Heart, Info, Share2, Sparkles, Users, UtensilsCrossed, X} from 'lucide-react';
 import {api, money, trackEvent} from '../api';
 import {useStore} from '../context';
@@ -9,8 +9,23 @@ import {getPantryStaples, isStaple, subscribePantry} from '../pantry';
 import {RecipeVisual} from '../recipe-art';
 import type {Quote, Recipe, Selection} from '../types';
 
+function loadCustomRecipe(id: string, stateRecipes?: Recipe[]): Recipe | null {
+  const fromState = stateRecipes?.find(r => r.id === id);
+  if (fromState) return fromState;
+  try {
+    const raw = sessionStorage.getItem('bua_nha_custom_recipes');
+    if (!raw) return null;
+    const map: Record<string, Recipe> = JSON.parse(raw);
+    return map[id] || null;
+  } catch {
+    return null;
+  }
+}
+
 export function Cook() {
   const [params] = useSearchParams();
+  const location = useLocation();
+  const stateData = location.state as {customRecipes?: Recipe[]} | null;
   const ids = Array.from(new Set((params.get('ids') || '').split(',').filter(Boolean))).slice(0, 3);
   const key = ids.join(',');
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -45,10 +60,25 @@ export function Cook() {
       setLoading(false);
       return;
     }
-    Promise.all(key.split(',').map(id => api<Recipe>(`/recipes/${id}`, 'GET', undefined, controller.signal)))
+    Promise.all(
+      key.split(',').map(async id => {
+        if (id.startsWith('custom-')) {
+          const custom = loadCustomRecipe(id, stateData?.customRecipes);
+          if (!custom) {
+            throw new Error('Công thức AI thiết kế riêng chỉ lưu tạm trong phiên tạo ra nó.');
+          }
+          return custom;
+        }
+        return api<Recipe>(`/recipes/${id}`, 'GET', undefined, controller.signal);
+      })
+    )
       .then(rows => {
         setRecipes(rows);
-        setVariants(lighter ? Object.fromEntries(rows.filter(r => r.variants?.length).map(r => [r.id, r.variants![0].id])) : {});
+        setVariants(
+          lighter
+            ? Object.fromEntries(rows.filter(r => r.variants?.length).map(r => [r.id, r.variants![0].id]))
+            : {}
+        );
       })
       .catch(e => {
         if (e.name !== 'AbortError') setError(e.message);
@@ -57,7 +87,7 @@ export function Cook() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [key, lighter, recipeRevision]);
+  }, [key, lighter, recipeRevision, stateData]);
 
   const selections: Selection[] = recipes.map(r => ({
     recipe_id: r.id,
@@ -70,7 +100,6 @@ export function Cook() {
   useEffect(() => {
     const controller = new AbortController();
 
-    // Kiểm tra xem có bất kỳ nguyên liệu nào được chọn không
     const hasAnySelection = selections.some(r => r.ingredient_ids && r.ingredient_ids.length > 0);
     if (!hasAnySelection) {
       setQuote(null);
@@ -79,10 +108,25 @@ export function Cook() {
       return;
     }
 
-    // Mô hình Stale-While-Revalidate: Giữ quote cũ khi đang tính lại để UI không bị giật nhấp nháy
     setQuoteLoading(true);
     setQuoteError('');
-    api<Quote>('/recipe-quotes', 'POST', {selections}, controller.signal)
+    const customRecipe = recipes.find(r => r.is_custom || r.id.startsWith('custom-'));
+    const quotePromise = customRecipe
+      ? api<Quote>(
+          '/custom-recipe-quote',
+          'POST',
+          {
+            servings,
+            base_servings: customRecipe.servings || 2,
+            ingredients: (customRecipe.ingredients || [])
+              .filter(ing => (selected[customRecipe.id] || []).includes(ing.id))
+              .map(ing => ({ingredient_id: ing.id, quantity: ing.quantity}))
+          },
+          controller.signal
+        )
+      : api<Quote>('/recipe-quotes', 'POST', {selections: JSON.parse(serialized)}, controller.signal);
+
+    quotePromise
       .then(setQuote)
       .catch(e => {
         if (e.name !== 'AbortError') setQuoteError(e.message);
@@ -91,7 +135,7 @@ export function Cook() {
         if (!controller.signal.aborted) setQuoteLoading(false);
       });
     return () => controller.abort();
-  }, [serialized, quoteRevision]);
+  }, [serialized, quoteRevision, recipes, servings, selected]);
 
   function toggle(rid: string, iid: string) {
     setSelected(prev => ({
@@ -145,7 +189,9 @@ export function Cook() {
                 <RecipeVisual recipe={recipes[0]} />
               </div>
               <div className="cook-single-info">
-                <span className="eyebrow">Chi tiết công thức & nguyên liệu</span>
+                <span className="eyebrow">
+                  {recipes[0].is_custom ? '✨ AI thiết kế riêng · Chi tiết công thức' : 'Chi tiết công thức & nguyên liệu'}
+                </span>
                 <h1>{recipes[0].name}</h1>
                 <div className="cook-cover-tags">
                   <span className="cook-time-tag">
@@ -421,7 +467,7 @@ export function Cook() {
               </button>
 
               <div className="cook-secondary-actions">
-                {recipes[0] && (
+                {recipes[0] && !recipes[0].is_custom && !recipes[0].id.startsWith('custom-') && (
                   <button
                     type="button"
                     className={`button secondary small-button ${isSaved(recipes[0].id) ? 'saved' : ''}`}
