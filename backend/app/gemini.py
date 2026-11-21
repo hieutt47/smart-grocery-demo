@@ -1,14 +1,9 @@
-"""Google Gemini Agentic Provider with Function Calling & Dynamic Recipe Adaptation.
-
-Combines Gemini Function Calling (search_catalog_recipes, get_available_ingredients,
-build_custom_recipe) with deterministic backend pricing, pack rounding, pantry
-subtraction, and allergy/health guardrails. Falls back cleanly to RuleBasedProvider
-on network error or API quota limits (HTTP 429).
-"""
+"""Google Gemini Agentic Provider with Dual Memory, 4 Tools & Allergen-aware Filtering."""
 
 import hashlib
 import json
 import logging
+import time
 import urllib.error
 import urllib.request
 from typing import Any
@@ -16,7 +11,8 @@ from typing import Any
 from sqlalchemy import select
 
 from .domain import custom_recipe_quote, normalize, product_data, recipe_data, recipe_quote
-from .models import Ingredient, Product, Recipe, RecipeIngredient
+from .lunch_data import INGREDIENT_KCAL_PER_UNIT, OFFICE_LUNCH_OPTIONS, estimate_recipe_kcal
+from .models import CustomRecipe, Ingredient, Product, Recipe, RecipeIngredient
 from .schemas import RecipeSelection
 from .seed import MEALS
 
@@ -25,8 +21,6 @@ logger = logging.getLogger("grocery.gemini")
 FAST_MODELS = [
     ("gemini-flash-lite-latest", "v1beta"),
     ("gemini-flash-latest", "v1beta"),
-    ("gemini-2.5-flash-lite", "v1beta"),
-    ("gemini-3.8-flash", "v1beta"),
     ("gemini-3-flash-preview", "v1beta"),
 ]
 
@@ -38,29 +32,59 @@ LAST_STATUS: dict[str, Any] = {
     "error": None,
 }
 
+KNOWN_ALLERGEN_KEYWORDS: dict[str, list[str]] = {
+    "shellfish": ["tom", "hai san", "tep", "cua", "ghe", "so", "oc", "dau hao"],
+    "fish": ["ca", "ca thu", "ca basa", "nuoc mam"],
+    "egg": ["trung", "trung ga", "mi soi"],
+    "soy": ["dau nanh", "dau hu", "dau phu", "nuoc tuong", "xi dau"],
+    "wheat": ["lua mi", "bot mi", "gluten"],
+    "sesame": ["me", "vung", "dau me"],
+}
+
+UNTRACKED_ALLERGEN_KEYWORDS = ["dau phong", "lac", "hat dieu", "oc cho", "hanh nhan", "sua bo"]
+
+ALLERGEN_LABELS: dict[str, str] = {
+    "shellfish": "Tôm / Hải sản",
+    "fish": "Cá / Nước mắm",
+    "egg": "Trứng",
+    "soy": "Đậu nành / Đậu hũ",
+    "wheat": "Lúa mì",
+    "sesame": "Mè / Vừng",
+}
+
 SYSTEM_INSTRUCTION = """Bạn là trợ lý tư vấn ăn uống thông minh và linh hoạt của Bữa Nhà — chuyên đồng hành cùng dân văn phòng trẻ và gia đình Việt.
 
-Bạn có 3 công cụ (tools) kết nối trực tiếp với kho dữ liệu thật:
-- `search_catalog_recipes`: Tìm kiếm sâu trong toàn bộ 60 công thức nấu ăn có sẵn (theo từ khóa, tag, thời gian, nguyên liệu tránh ăn).
-- `get_available_ingredients`: Xem danh sách 48 nguyên liệu/sản phẩm thật đang có trong kho (kèm mã ID, đơn vị, giá, dị ứng).
-- `build_custom_recipe`: Tự thiết kế một món ăn mới hoàn chỉnh CHỈ dùng các `ingredient_id` thật từ `get_available_ingredients` khi kho 60 món có sẵn không đáp ứng tốt yêu cầu (ví dụ: tủ lạnh chỉ còn vài nguyên liệu lẻ, bệnh lý tim mạch/dạ dày/tiểu đường, phụ nữ mang thai, hoặc chế độ ăn đặc biệt).
+Bạn có 4 công cụ (tools) kết nối trực tiếp với kho dữ liệu thật:
+1. `search_catalog_recipes`: Tìm kiếm trong kho 60 công thức nấu ăn có sẵn (tự động loại trừ món dị ứng và món user không thích).
+2. `get_available_ingredients`: Xem danh sách 48 nguyên liệu/sản phẩm thật đang có trong kho (kèm giá, đơn vị, kcal/đơn vị, dị ứng).
+3. `build_custom_recipe`: Tự thiết kế một món ăn mới hoàn chỉnh CHỈ dùng `ingredient_id` thật từ `get_available_ingredients` khi kho 60 món chưa đáp ứng tốt (vd: tủ lạnh chỉ còn vài nguyên liệu lẻ, bệnh lý tim mạch/dạ dày/tiểu đường, phụ nữ mang thai, hoặc chế độ ăn đặc biệt).
+4. `search_office_lunch`: Tìm kiếm gợi ý **ăn trưa ngoài quán / đặt đồ văn phòng** (20 lựa chọn quen thuộc với giá, calo, tag nhẹ bụng/không buồn ngủ).
 
 Nguyên tắc vận hành:
-1. Nếu các món trong danh sách ứng viên sẵn có đã đáp ứng tốt nhu cầu phổ thông (ăn trưa, nấu nhanh, mâm cơm gia đình), hãy chọn trực tiếp mã ID có sẵn để phản hồi nhanh nhất.
-2. Khi người dùng nêu tình huống đặc biệt (bệnh lý như tim mạch/huyết áp/dạ dày/tiểu đường, bà bầu, hoặc liệt kê nguyên liệu có sẵn trong tủ lạnh), hãy chủ động gọi `search_catalog_recipes` / `get_available_ingredients` và dùng `build_custom_recipe` nếu cần thiết kế món phù hợp (ví dụ: món hấp/luộc ít muối cho người tim mạch, món chín kỹ giàu sắt/folate cho bà bầu).
-3. Nếu `intent` là `"meal"` (người dùng đòi combo/mâm cơm), `selected_ids` BẮT BUỘC chỉ chọn mã mâm cơm bắt đầu bằng `bua-`.
-4. ĐA DẠNG GỢI Ý: Kiểm tra `shown` trong ngữ cảnh và ưu tiên chọn món CHƯA xuất hiện trong `shown`.
-5. Kết quả cuối cùng PHẢI là một JSON object thuần túy (không bọc text thừa ngoài JSON) có cấu trúc:
+1. PHẢI đọc kỹ `TRÍ NHỚ DÀI HẠN (memory)` và `Lịch sử hội thoại` để tuân thủ tuyệt đối các bệnh lý, thai kỳ, dị ứng, sở thích, nguyên liệu tủ lạnh mà người dùng đã nhắc trước đó (kể cả ở các tin nhắn rất xa).
+2. Nếu người dùng hỏi **ăn trưa ngoài / đi làm lười nấu / đặt cơm văn phòng**, đặt `intent = "office_lunch"`, gọi `search_office_lunch` và điền `selected_lunch_ids`.
+3. Nếu nhu cầu nấu ăn phổ thông khớp với kho 60 món, ưu tiên chọn trực tiếp mã ID sẵn có; khi gặp tình huống đặc thù (tủ lạnh còn đồ lẻ, bệnh lý, thai kỳ), gọi `get_available_ingredients` rồi `build_custom_recipe`.
+4. Nếu `intent = "meal"` (combo mâm cơm), `selected_ids` BẮT BUỘC chỉ chọn mã mâm cơm bắt đầu bằng `bua-`.
+5. ĐA DẠNG GỢI Ý: Kiểm tra `shown` và ưu tiên chọn món CHƯA xuất hiện trong `shown`.
+6. Cập nhật trí nhớ dài hạn qua `memory_updates`:
+   - Chỉ thêm vào `add` khi user nêu sự thật mới về sức khỏe, thai kỳ, dị ứng, món ghét, mục tiêu ăn uống hoặc nguyên liệu có trong tủ lạnh.
+   - Đưa vào `remove` nếu user nói rõ đã hết/bỏ điều kiện đó (vd: *"hôm nay không ăn kiêng nữa"*).
+7. Kết quả cuối cùng PHẢI là JSON object thuần túy:
 {
   "servings": <int 1..6>,
-  "budget": <int VND hoặc null>,
-  "minutes": <int hoặc null>,
+  "budget": <int VND hoặc null nếu câu hiện tại không giới hạn>,
+  "minutes": <int hoặc null nếu câu hiện tại không giới hạn>,
   "excluded": [<ingredient_id>],
-  "intent": "dish" | "meal" | "products" | "general",
-  "selected_ids": [<recipe_id hoặc meal_id hoặc custom_recipe_id từ build_custom_recipe>],
+  "intent": "dish" | "meal" | "office_lunch" | "products" | "general",
+  "selected_ids": [<recipe_id hoặc meal_id hoặc custom_recipe_id>],
+  "selected_lunch_ids": [<lunch_id nếu intent là office_lunch>],
   "selected_product_ids": [<product_id nếu mua lẻ>],
   "lighter": <boolean>,
-  "health_advisory": <string ngắn gọn lưu ý dinh dưỡng/chế biến nếu có yếu tố bệnh lý/thai kỳ, hoặc null>,
+  "health_advisory": <string ngắn gọn lưu ý dinh dưỡng/chế biến nếu có bệnh lý, thai kỳ hoặc dị ứng, hoặc null>,
+  "memory_updates": {
+    "add": {"health_conditions": [], "pregnancy": false, "allergies": [], "dislikes": [], "diet_goals": [], "fridge_items": []},
+    "remove": {"health_conditions": [], "pregnancy": false, "allergies": [], "dislikes": [], "diet_goals": [], "fridge_items": []}
+  },
   "message": <lời nhắn tiếng Việt tự nhiên, giải thích lý do gợi ý>
 }"""
 
@@ -71,15 +95,12 @@ GEMINI_TOOLS = [
         "parameters": {
             "type": "OBJECT",
             "properties": {
-                "query": {
-                    "type": "STRING",
-                    "description": "Từ khóa tên món hoặc nguyên liệu (vd: hap, luoc, uc ga, ca)",
-                },
+                "query": {"type": "STRING", "description": "Từ khóa tên món hoặc nguyên liệu"},
                 "max_minutes": {"type": "INTEGER", "description": "Thời gian nấu tối đa (phút)"},
                 "exclude_ingredients": {
                     "type": "ARRAY",
                     "items": {"type": "STRING"},
-                    "description": "Danh sách mã nguyên liệu cần tránh (vd: ['fish', 'pork'])",
+                    "description": "Danh sách mã nguyên liệu cần tránh",
                 },
                 "required_tags": {
                     "type": "ARRAY",
@@ -91,31 +112,27 @@ GEMINI_TOOLS = [
     },
     {
         "name": "get_available_ingredients",
-        "description": "Liệt kê các nguyên liệu/sản phẩm thật đang có trong kho để dùng khi thiết kế công thức mới.",
+        "description": "Liệt kê 48 nguyên liệu/sản phẩm thật đang có trong kho kèm đơn vị, giá, calo và chất dị ứng.",
         "parameters": {
             "type": "OBJECT",
             "properties": {
                 "category": {
                     "type": "STRING",
-                    "description": "Lọc theo nhóm (Rau củ, Thịt & cá, Trứng & đậu, Gạo & gia vị, Trái cây) hoặc để trống để lấy tất cả",
+                    "description": "Nhóm nguyên liệu hoặc để trống để lấy tất cả",
                 }
             },
         },
     },
     {
         "name": "build_custom_recipe",
-        "description": "Tự thiết kế và tính giá một món ăn mới cho 2 người từ các ingredient_id có thật trong kho.",
+        "description": "Tự thiết kế và lưu một món ăn mới cho 2 người từ các ingredient_id thật trong kho.",
         "parameters": {
             "type": "OBJECT",
             "properties": {
                 "name": {"type": "STRING", "description": "Tên món ăn bằng tiếng Việt"},
                 "minutes": {"type": "INTEGER", "description": "Thời gian nấu ước tính (phút)"},
                 "emoji": {"type": "STRING", "description": "1 emoji đại diện món ăn"},
-                "tags": {
-                    "type": "ARRAY",
-                    "items": {"type": "STRING"},
-                    "description": "1-3 tag ngắn (vd: ['eat-clean', 'nhanh'])",
-                },
+                "tags": {"type": "ARRAY", "items": {"type": "STRING"}, "description": "1-3 tag ngắn"},
                 "ingredients": {
                     "type": "ARRAY",
                     "description": "Danh sách nguyên liệu cho khẩu phần 2 người",
@@ -126,10 +143,7 @@ GEMINI_TOOLS = [
                                 "type": "STRING",
                                 "description": "Mã ID thật từ get_available_ingredients",
                             },
-                            "quantity": {
-                                "type": "NUMBER",
-                                "description": "Định lượng cho 2 người theo đúng đơn vị của nguyên liệu",
-                            },
+                            "quantity": {"type": "NUMBER", "description": "Định lượng cho 2 người"},
                         },
                         "required": ["ingredient_id", "quantity"],
                     },
@@ -137,17 +151,86 @@ GEMINI_TOOLS = [
                 "steps": {
                     "type": "ARRAY",
                     "items": {"type": "STRING"},
-                    "description": "3-4 bước nấu ngắn gọn, rõ ràng",
+                    "description": "3-4 bước nấu ngắn gọn",
                 },
-                "health_note": {
-                    "type": "STRING",
-                    "description": "Ghi chú chế biến phù hợp sức khỏe (nếu có)",
-                },
+                "health_note": {"type": "STRING", "description": "Ghi chú chế biến phù hợp sức khỏe"},
             },
             "required": ["name", "minutes", "ingredients", "steps"],
         },
     },
+    {
+        "name": "search_office_lunch",
+        "description": "Tìm món ăn trưa văn phòng (ăn ngoài / đặt đồ) theo từ khóa, ngân sách tối đa, calo tối đa hoặc eat clean.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "query": {"type": "STRING", "description": "Từ khóa (vd: bun, com, salad, nhe bung, nhom)"},
+                "max_price": {"type": "INTEGER", "description": "Ngân sách tối đa VNĐ (vd: 55000)"},
+                "max_kcal": {"type": "INTEGER", "description": "Calo tối đa mỗi phần (vd: 450)"},
+                "eat_clean_only": {"type": "BOOLEAN", "description": "Chỉ lọc món eat clean / nhẹ bụng"},
+            },
+        },
+    },
 ]
+
+
+def default_memory() -> dict[str, Any]:
+    return {
+        "health_conditions": [],
+        "pregnancy": False,
+        "allergies": [],
+        "dislikes": [],
+        "diet_goals": [],
+        "fridge_items": [],
+    }
+
+
+def normalize_memory(raw: dict[str, Any] | None) -> dict[str, Any]:
+    mem = default_memory()
+    if not isinstance(raw, dict):
+        return mem
+    for key in ("health_conditions", "allergies", "dislikes", "diet_goals", "fridge_items"):
+        vals = raw.get(key) or []
+        if isinstance(vals, list):
+            mem[key] = list(dict.fromkeys(str(x).strip() for x in vals if str(x).strip()))[:15]
+    mem["pregnancy"] = bool(raw.get("pregnancy"))
+    return mem
+
+
+def merge_memory(memory: dict[str, Any], updates: dict[str, Any] | None) -> dict[str, Any]:
+    mem = normalize_memory(memory)
+    if not isinstance(updates, dict):
+        return mem
+    add_block = updates.get("add") or {}
+    rem_block = updates.get("remove") or {}
+    if isinstance(add_block, dict):
+        if add_block.get("pregnancy") is True:
+            mem["pregnancy"] = True
+        for key in ("health_conditions", "allergies", "dislikes", "diet_goals", "fridge_items"):
+            items = add_block.get(key)
+            if isinstance(items, list):
+                merged = mem[key] + [str(x).strip() for x in items if str(x).strip()]
+                mem[key] = list(dict.fromkeys(merged))[:15]
+    if isinstance(rem_block, dict):
+        if rem_block.get("pregnancy") is True or rem_block.get("pregnancy") is False:
+            if "pregnancy" in rem_block:
+                mem["pregnancy"] = False
+        for key in ("health_conditions", "allergies", "dislikes", "diet_goals", "fridge_items"):
+            items = rem_block.get(key)
+            if isinstance(items, list):
+                drop = {normalize(str(x)) for x in items}
+                mem[key] = [x for x in mem[key] if normalize(x) not in drop]
+    return mem
+
+
+def recipe_has_allergen(db, ing_ids: list[str], blocked_allergens: set[str]) -> bool:
+    if not blocked_allergens:
+        return False
+    for iid in ing_ids:
+        ing = db.get(Ingredient, iid)
+        if ing and blocked_allergens.intersection(ing.allergens or []):
+            return True
+    return False
 
 
 def tool_search_catalog_recipes(
@@ -159,10 +242,14 @@ def tool_search_catalog_recipes(
     pantry: list[str] | None = None,
     servings: int = 2,
     shown: list[str] | None = None,
+    blocked_allergens: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Deterministic SQLite search over all 60+ catalog recipes."""
+    """Deterministic SQLite search over all 60+ catalog recipes with allergen & dislike safety."""
     norm_q = normalize(query or "").strip()
     exclusions = set(str(x) for x in (exclude_ingredients or []))
+    allergen_set = set(str(x) for x in (blocked_allergens or []))
+    if "fish" in exclusions:
+        allergen_set.add("fish")
     req_tags = [normalize(str(t)) for t in (required_tags or []) if str(t).strip()]
     pantry_set = set(str(x) for x in (pantry or []))
     shown_set = set(str(x) for x in (shown or []))
@@ -180,9 +267,7 @@ def tool_search_catalog_recipes(
         )
         if exclusions.intersection(ing_ids):
             continue
-        if "fish" in exclusions and any(
-            (ing := db.get(Ingredient, iid)) is not None and "fish" in ing.allergens for iid in ing_ids
-        ):
+        if recipe_has_allergen(db, ing_ids, allergen_set):
             continue
         if norm_q:
             haystack = normalize(r.name + " " + r.description + " " + " ".join(r.tags))
@@ -217,7 +302,7 @@ def tool_search_catalog_recipes(
 
 
 def tool_get_available_ingredients(db, category: str = "") -> dict[str, Any]:
-    """Return authoritative inventory ingredients/products for AI custom recipe composition."""
+    """Return authoritative inventory ingredients/products with calorie metadata."""
     norm_cat = normalize(category or "").strip()
     items = []
     for p in db.scalars(select(Product).order_by(Product.category, Product.id)):
@@ -234,10 +319,35 @@ def tool_get_available_ingredients(db, category: str = "") -> dict[str, Any]:
                 "unit": p.unit,
                 "pack_size": p.pack_size,
                 "price_vnd": p.price,
+                "kcal_per_unit": INGREDIENT_KCAL_PER_UNIT.get(p.id, 1.0),
                 "allergens": ing.allergens if ing else [],
             }
         )
     return {"count": len(items), "ingredients": items}
+
+
+def tool_search_office_lunch(
+    query: str = "",
+    max_price: int | None = None,
+    max_kcal: int | None = None,
+    eat_clean_only: bool = False,
+) -> dict[str, Any]:
+    """Search curated Vietnamese office-lunch out-of-home options."""
+    norm_q = normalize(query or "").strip()
+    results = []
+    for opt in OFFICE_LUNCH_OPTIONS:
+        if max_price is not None and opt["price"] > int(max_price):
+            continue
+        if max_kcal is not None and opt["kcal"] > int(max_kcal):
+            continue
+        if eat_clean_only and "eat clean" not in normalize(opt["tag"]):
+            continue
+        if norm_q:
+            haystack = normalize(f"{opt['name']} {opt['tag']} {opt['note']}")
+            if not all(word in haystack for word in norm_q.split()):
+                continue
+        results.append(opt)
+    return {"count": len(results), "lunches": results[:8]}
 
 
 def tool_build_custom_recipe(
@@ -251,8 +361,9 @@ def tool_build_custom_recipe(
     health_note: str = "",
     servings: int = 2,
     pantry: list[str] | None = None,
+    persist: bool = True,
 ) -> dict[str, Any]:
-    """Validate AI-proposed ingredients against SQLite and compute authoritative cost."""
+    """Validate ingredients, compute kcal + cost, and persist CustomRecipe in SQLite."""
     clean_name = str(name or "").strip()[:80]
     if not clean_name or not ingredients or not steps:
         return {"error": "Thiếu tên món, danh sách nguyên liệu hoặc các bước chế biến."}
@@ -288,22 +399,49 @@ def tool_build_custom_recipe(
 
     slug_seed = json.dumps({"name": clean_name, "ingredients": validated_lines}, sort_keys=True)
     custom_id = f"custom-{hashlib.sha256(slug_seed.encode()).hexdigest()[:10]}"
-    clean_tags = [str(t).strip()[:24] for t in (tags or ["AI thiết kế"]) if str(t).strip()][:4]
+    clean_tags = [str(t).strip()[:24] for t in (tags or ["AI thiết kế"]) if str(t).strip()][:4] or [
+        "AI thiết kế"
+    ]
+    clean_steps = [str(s).strip() for s in steps if str(s).strip()][:8]
+    clean_emoji = (str(emoji or "🍽️").strip() or "🍽️")[:4]
+    clean_desc = (
+        health_note.strip() or "Món ăn được AI thiết kế riêng theo nhu cầu của bạn từ nguyên liệu thật."
+    )
+    est_kcal = estimate_recipe_kcal(validated_lines, base_servings=2)
+
+    if persist and not db.get(CustomRecipe, custom_id):
+        db.add(
+            CustomRecipe(
+                id=custom_id,
+                name=clean_name,
+                description=clean_desc,
+                minutes=safe_minutes,
+                servings=2,
+                emoji=clean_emoji,
+                color="green",
+                tags=clean_tags,
+                ingredients=recipe_ingredients,
+                steps=clean_steps,
+                estimated_kcal=est_kcal,
+                created_at=int(time.time()),
+            )
+        )
+        db.flush()
 
     recipe_obj = {
         "id": custom_id,
         "name": clean_name,
-        "description": health_note.strip()
-        or "Món ăn được AI thiết kế riêng theo nhu cầu của bạn từ nguyên liệu thật.",
+        "description": clean_desc,
         "minutes": safe_minutes,
         "servings": 2,
-        "emoji": (str(emoji or "🍽️").strip() or "🍽️")[:4],
+        "emoji": clean_emoji,
         "color": "green",
-        "tags": clean_tags or ["AI thiết kế"],
+        "tags": clean_tags,
         "source": "Công thức phối hợp bởi Trợ lý AI Bữa Nhà",
         "is_custom": True,
+        "estimated_kcal": est_kcal,
         "ingredients": recipe_ingredients,
-        "steps": [str(s).strip() for s in steps if str(s).strip()][:8],
+        "steps": clean_steps,
         "variants": [],
     }
     selection = {
@@ -316,6 +454,7 @@ def tool_build_custom_recipe(
         "status": "ok",
         "custom_recipe_id": custom_id,
         "estimated_total_vnd": quote["total"],
+        "estimated_kcal": est_kcal,
         "recipe": recipe_obj,
         "selection": selection,
     }
@@ -340,6 +479,12 @@ def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int =
     """SQL Pre-filter: filter 60+ recipes down to top candidate matches for Gemini."""
     text = normalize(content)
     exclusions = set(str(x) for x in ctx.get("excluded", []))
+    memory = normalize_memory(ctx.get("memory"))
+    allergen_set = set(memory["allergies"])
+    if "fish" in exclusions:
+        allergen_set.add("fish")
+    exclusions.update(memory["dislikes"])
+
     pantry_set = set(str(x) for x in ctx.get("pantry", []))
     shown_set = set(str(x) for x in ctx.get("shown", []))
     servings = max(1, min(6, int(ctx.get("servings") or 2)))
@@ -353,9 +498,7 @@ def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int =
         )
         if exclusions.intersection(ing_ids):
             continue
-        if "fish" in exclusions and any(
-            (ing := db.get(Ingredient, iid)) is not None and "fish" in ing.allergens for iid in ing_ids
-        ):
+        if recipe_has_allergen(db, ing_ids, allergen_set):
             continue
 
         buy_ids = [i for i in ing_ids if i not in pantry_set] or ing_ids
@@ -391,8 +534,8 @@ def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int =
     top_recipes = "\n".join(item[2] for item in scored[:limit])
     meal_lines = "\n".join(f"- {m['id']}: {m['name']} ({' + '.join(m['recipe_ids'])})" for m in MEALS)
     return (
-        f"Tổng kho Bữa Nhà hiện có {len(recipes)} công thức nấu ăn và {len(MEALS)} mâm cơm gia đình.\n"
-        f"Danh sách món ứng viên đã lọc ({min(limit, len(scored))} món):\n{top_recipes}\n\n"
+        f"Tổng kho Bữa Nhà hiện có {len(recipes)} công thức nấu ăn, {len(MEALS)} mâm cơm và {len(OFFICE_LUNCH_OPTIONS)} món ăn trưa văn phòng.\n"
+        f"Danh sách món nấu ứng viên đã lọc ({min(limit, len(scored))} món):\n{top_recipes}\n\n"
         f"Danh mục mâm cơm:\n{meal_lines}"
     )
 
@@ -404,19 +547,33 @@ def _execute_tool_call(
     ctx: dict[str, Any],
     custom_cache: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
+    memory = normalize_memory(ctx.get("memory"))
     if name == "search_catalog_recipes":
+        merged_exclude = list(
+            set(args.get("exclude_ingredients") or [])
+            | set(ctx.get("excluded") or [])
+            | set(memory["dislikes"])
+        )
         return tool_search_catalog_recipes(
             db,
             query=str(args.get("query", "")),
             max_minutes=args.get("max_minutes"),
-            exclude_ingredients=args.get("exclude_ingredients") or ctx.get("excluded"),
+            exclude_ingredients=merged_exclude,
             required_tags=args.get("required_tags"),
             pantry=ctx.get("pantry"),
             servings=int(ctx.get("servings") or 2),
             shown=ctx.get("shown"),
+            blocked_allergens=memory["allergies"],
         )
     if name == "get_available_ingredients":
         return tool_get_available_ingredients(db, category=str(args.get("category", "")))
+    if name == "search_office_lunch":
+        return tool_search_office_lunch(
+            query=str(args.get("query", "")),
+            max_price=args.get("max_price"),
+            max_kcal=args.get("max_kcal"),
+            eat_clean_only=bool(args.get("eat_clean_only")),
+        )
     if name == "build_custom_recipe":
         built = tool_build_custom_recipe(
             db,
@@ -429,6 +586,7 @@ def _execute_tool_call(
             health_note=str(args.get("health_note", "")),
             servings=int(ctx.get("servings") or 2),
             pantry=ctx.get("pantry"),
+            persist=False,
         )
         if built.get("status") == "ok":
             cid = built["custom_recipe_id"]
@@ -437,6 +595,7 @@ def _execute_tool_call(
                 "status": "ok",
                 "custom_recipe_id": cid,
                 "estimated_total_vnd": built["estimated_total_vnd"],
+                "estimated_kcal": built["estimated_kcal"],
             }
         return built
     return {"error": f"Tool '{name}' không tồn tại."}
@@ -444,7 +603,7 @@ def _execute_tool_call(
 
 def _post_gemini(url: str, payload: dict[str, Any], timeout: int) -> dict[str, Any]:
     data = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json", "User-Agent": "BuaNha-Demo/1.5"}
+    headers = {"Content-Type": "application/json", "User-Agent": "BuaNha-Demo/2.0"}
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
@@ -464,22 +623,20 @@ def call_gemini(
     if not clean_key:
         return None
 
+    memory = normalize_memory(context.get("memory"))
     history_lines = []
     for turn in context.get("history", [])[-8:]:
         role_label = "Người dùng" if turn.get("role") == "user" else "Trợ lý"
         history_lines.append(f"- {role_label}: {turn.get('text', '')}")
     history_block = (
-        "Lịch sử hội thoại trước đó (PHẢI ghi nhớ các thông tin sức khỏe, sở thích, nguyên liệu người dùng đã nêu):\n"
-        + "\n".join(history_lines)
-        + "\n\n"
-        if history_lines
-        else ""
+        "Lịch sử hội thoại gần đây:\n" + "\n".join(history_lines) + "\n\n" if history_lines else ""
     )
-    clean_ctx = {k: v for k, v in context.items() if k != "history"}
+    clean_ctx = {k: v for k, v in context.items() if k not in {"history", "memory"}}
     user_text = (
+        f"TRÍ NHỚ DÀI HẠN (memory - KHÔNG BAO GIỜ QUÊN): {json.dumps(memory, ensure_ascii=False)}\n\n"
         f"{candidates_text}\n\n"
         f"{history_block}"
-        f"Ngữ cảnh trích xuất: {json.dumps(clean_ctx, ensure_ascii=False)}\n\n"
+        f"Ngữ cảnh phiên: {json.dumps(clean_ctx, ensure_ascii=False)}\n\n"
         f"Tin nhắn người dùng hiện tại: {prompt}"
     )
 
@@ -488,15 +645,22 @@ def call_gemini(
         if m_cand not in candidate_list:
             candidate_list.append(m_cand)
 
+    deadline = time.monotonic() + max(float(timeout), 8.0)
+
     for m, ver in candidate_list:
+        if time.monotonic() >= deadline:
+            break
         url = f"https://generativelanguage.googleapis.com/{ver}/models/{m}:generateContent?key={clean_key}"
         contents: list[dict[str, Any]] = [{"role": "user", "parts": [{"text": user_text}]}]
         custom_cache: dict[str, dict[str, Any]] = {}
-
-        # Run bounded agentic tool-calling loop when db is available; fallback to single-shot JSON on 400.
         use_tools = db is not None
+
         try:
             for _round in range(4 if use_tools else 1):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0.5:
+                    raise TimeoutError("Gemini request budget exceeded")
+                per_call_timeout = min(float(timeout), remaining)
                 payload: dict[str, Any] = {
                     "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
                     "contents": contents,
@@ -508,15 +672,14 @@ def call_gemini(
                     payload["generationConfig"]["responseMimeType"] = "application/json"
 
                 try:
-                    res_data = _post_gemini(url, payload, timeout=timeout)
+                    res_data = _post_gemini(url, payload, timeout=per_call_timeout)
                 except urllib.error.HTTPError as e:
                     err_body = e.read().decode("utf-8", errors="ignore")
                     if e.code == 400 and use_tools:
-                        # Model endpoint rejected tool declarations; retry cleanly with JSON mode once.
                         use_tools = False
                         payload.pop("tools", None)
                         payload["generationConfig"]["responseMimeType"] = "application/json"
-                        res_data = _post_gemini(url, payload, timeout=timeout)
+                        res_data = _post_gemini(url, payload, timeout=per_call_timeout)
                     else:
                         logger.warning("Gemini API (%s/%s) HTTPError %d: %s", ver, m, e.code, err_body[:100])
                         LAST_STATUS.update(
@@ -599,8 +762,29 @@ def resolve_meal(raw_key: str) -> dict[str, Any] | None:
     return None
 
 
+def _detect_allergens(text: str) -> tuple[list[str], bool]:
+    """Detect known DB allergens vs untracked high-risk allergens in Vietnamese text."""
+    if "di ung" not in text:
+        return [], False
+    if any(kw in text for kw in UNTRACKED_ALLERGEN_KEYWORDS):
+        return [], True
+    detected = []
+    for allergen_code, keywords in KNOWN_ALLERGEN_KEYWORDS.items():
+        for kw in keywords:
+            if kw in text:
+                if allergen_code == "fish" and kw == "ca":
+                    cleaned = text.replace("ca chua", "").replace("ca rot", "")
+                    if " ca " not in f" {cleaned} ":
+                        continue
+                detected.append(allergen_code)
+                break
+    if not detected:
+        return [], True
+    return list(dict.fromkeys(detected)), False
+
+
 class GeminiProvider:
-    """Combines Google Gemini Agentic Tool Use with deterministic pricing and safety."""
+    """Combines Google Gemini Dual Memory + 4 Tools with deterministic pricing & safety."""
 
     def __init__(self, api_key: str, model: str = "gemini-flash-lite-latest"):
         self.api_key = api_key
@@ -612,30 +796,36 @@ class GeminiProvider:
     def recommend(self, db, content: str, context: dict) -> dict:
         text = normalize(content)
         raw_history = context.get("history", [])
+        memory = normalize_memory(context.get("memory"))
         ctx = {
             "servings": 2,
             "budget": None,
             "minutes": None,
             "excluded": [],
             "shown": [],
-            **{k: v for k, v in context.items() if k != "history"},
+            "memory": memory,
+            **{k: v for k, v in context.items() if k not in {"history", "memory"}},
         }
 
-        # Medical & Allergy invariant check: keep deterministic refusal
-        if "di ung" in text or ctx.get("allergy_uncertain"):
+        detected_allergens, untracked_allergy = _detect_allergens(text)
+        if untracked_allergy or ctx.get("allergy_uncertain"):
             ctx["allergy_uncertain"] = True
             return {
                 "mode": "gemini",
                 "message": (
-                    "Dữ liệu demo chưa đủ để xác nhận món phù hợp với dị ứng bạn nêu. "
-                    "Mình không thể bảo đảm an toàn; bạn có thể xem thành phần sản phẩm. "
-                    "Bắt đầu cuộc trò chuyện mới để thử nhu cầu khác."
+                    "Dữ liệu hiện tại chưa đủ để xác nhận món phù hợp với dị ứng bạn nêu (như đậu phộng/hạt/sữa). "
+                    "Mình không thể bảo đảm an toàn; bạn có thể xem kỹ thành phần sản phẩm hoặc bắt đầu cuộc trò chuyện mới."
                 ),
                 "suggestions": [],
                 "products": [],
-                "health_advisory": None,
+                "lunch_suggestions": [],
+                "health_advisory": "Cảnh báo dị ứng ngoài danh mục kiểm soát: vui lòng tham khảo thông tin dị ứng thực phẩm trực tiếp.",
                 "context": ctx,
             }
+
+        if detected_allergens:
+            memory["allergies"] = list(dict.fromkeys(memory["allergies"] + detected_allergens))
+            ctx["memory"] = memory
 
         candidates_text = build_dynamic_candidates(db, content, ctx, limit=25)
         call_ctx = {**ctx, "history": raw_history} if raw_history else ctx
@@ -643,54 +833,103 @@ class GeminiProvider:
             self.api_key, self.model, content, call_ctx, candidates_text=candidates_text, db=db
         )
         if not llm_data:
-            res = self.fallback.recommend(db, content, context)
+            res = self.fallback.recommend(db, content, {k: v for k, v in ctx.items() if k != "history"})
             if LAST_STATUS.get("error"):
                 res["gemini_error"] = LAST_STATUS["error"]
             return res
 
-        changing = "doi" in text or "khong thich" in text or "mon khac" in text
+        # Merge persistent memory updates returned by Gemini
+        memory = merge_memory(memory, llm_data.get("memory_updates"))
+        if detected_allergens:
+            memory["allergies"] = list(dict.fromkeys(memory["allergies"] + detected_allergens))
+        ctx["memory"] = memory
+
+        # Prevent context contamination across unrelated turns
+        is_refinement = any(
+            kw in text for kw in ("doi mon", "mon khac", "khong thich", "re hon", "nhanh hon", "them mon")
+        )
         if isinstance(llm_data.get("servings"), (int, float)) and llm_data["servings"] >= 1:
             ctx["servings"] = min(6, max(1, int(llm_data["servings"])))
+        elif not is_refinement:
+            ctx["servings"] = 2
+
         if "budget" in llm_data:
             if llm_data["budget"] is not None and isinstance(llm_data["budget"], (int, float)):
                 ctx["budget"] = round(float(llm_data["budget"]))
-            elif not changing:
+            elif not is_refinement:
                 ctx["budget"] = None
+        elif not is_refinement:
+            ctx["budget"] = None
+
         if "minutes" in llm_data:
             if llm_data["minutes"] is not None and isinstance(llm_data["minutes"], (int, float)):
                 ctx["minutes"] = int(llm_data["minutes"])
-            elif not changing:
+            elif not is_refinement:
                 ctx["minutes"] = None
+        elif not is_refinement:
+            ctx["minutes"] = None
+
         if llm_data.get("lighter"):
             ctx["lighter"] = True
 
         new_excluded = llm_data.get("excluded", [])
         if isinstance(new_excluded, list):
-            ctx["excluded"] = sorted(set(ctx.get("excluded", []) + [str(x) for x in new_excluded]))
+            ctx["excluded"] = sorted(
+                set(ctx.get("excluded", []) + memory["dislikes"] + [str(x) for x in new_excluded])
+            )
 
         exclusions = set(ctx["excluded"])
+        blocked_allergens = set(memory["allergies"])
+        if "fish" in exclusions:
+            blocked_allergens.add("fish")
+
         pantry_set = set(str(x) for x in ctx.get("pantry", []))
         intent = llm_data.get("intent", "dish")
         if any(kw in text for kw in ("mam com", "combo", "ca bua", "nhieu mon")):
             intent = "meal"
+        elif any(kw in text for kw in ("an ngoai", "dat do", "quan com", "trua van phong")):
+            intent = "office_lunch"
+
         ai_message = str(llm_data.get("message", "")).strip()
         raw_advisory = llm_data.get("health_advisory")
         health_advisory = str(raw_advisory).strip() if raw_advisory else None
+        if blocked_allergens and not health_advisory:
+            names = ", ".join(ALLERGEN_LABELS.get(a, a) for a in sorted(blocked_allergens))
+            health_advisory = f"Đã tự động loại bỏ các món chứa: {names}. Vui lòng kiểm tra kỹ nhãn sản phẩm trước khi chế biến."
 
         result = {
             "mode": "gemini",
-            "message": ai_message or "Dưới đây là gợi ý bữa cơm nhà vừa vặn nhất cho bạn:",
+            "message": ai_message or "Dưới đây là gợi ý phù hợp nhất cho bạn:",
             "suggestions": [],
             "products": [],
+            "lunch_suggestions": [],
             "health_advisory": health_advisory,
             "context": ctx,
         }
+
+        if intent == "office_lunch":
+            lunch_ids = [str(x).strip() for x in (llm_data.get("selected_lunch_ids") or [])]
+            lunch_map = {opt["id"]: opt for opt in OFFICE_LUNCH_OPTIONS}
+            picked_lunches = [lunch_map[lid] for lid in lunch_ids if lid in lunch_map]
+            if not picked_lunches:
+                max_p = ctx["budget"] if ctx["budget"] and ctx["budget"] >= 35000 else None
+                picked_lunches = tool_search_office_lunch(
+                    query="",
+                    max_price=max_p,
+                    eat_clean_only=("eat-clean" in memory["diet_goals"] or "eat clean" in text),
+                )["lunches"][:3]
+            result["lunch_suggestions"] = picked_lunches[:3]
+            if result["lunch_suggestions"]:
+                return result
 
         if intent == "products" and llm_data.get("selected_product_ids"):
             products = []
             for raw_pid in llm_data["selected_product_ids"]:
                 p = db.get(Product, str(raw_pid).strip())
                 if p and p.available and p.id not in exclusions:
+                    ing = db.get(Ingredient, p.id)
+                    if ing and blocked_allergens.intersection(ing.allergens or []):
+                        continue
                     products.append(product_data(p))
             if products:
                 result["products"] = products
@@ -704,6 +943,11 @@ class GeminiProvider:
             if sid in custom_cache:
                 built = custom_cache[sid]
                 custom_recipe = built["recipe"]
+                c_ing_ids = [x["id"] for x in custom_recipe["ingredients"]]
+                if exclusions.intersection(c_ing_ids) or recipe_has_allergen(
+                    db, c_ing_ids, blocked_allergens
+                ):
+                    continue
                 result["suggestions"].append(
                     {
                         "id": sid,
@@ -721,7 +965,7 @@ class GeminiProvider:
             meal = resolve_meal(sid)
             if meal:
                 key, title = meal["id"], meal["name"]
-                if changing and key in ctx.get("shown", []):
+                if is_refinement and key in ctx.get("shown", []):
                     continue
                 dishes = [db.get(Recipe, rid) for rid in meal["recipe_ids"] if db.get(Recipe, rid)]
             else:
@@ -729,7 +973,7 @@ class GeminiProvider:
                 if not recipe:
                     continue
                 key, title = recipe.id, recipe.name
-                if changing and key in ctx.get("shown", []):
+                if is_refinement and key in ctx.get("shown", []):
                     continue
                 dishes = [recipe]
 
@@ -745,10 +989,7 @@ class GeminiProvider:
                         select(RecipeIngredient.ingredient_id).where(RecipeIngredient.recipe_id == r.id)
                     )
                 )
-                if exclusions.intersection(ids):
-                    excluded = True
-                    break
-                if "fish" in exclusions and any("fish" in db.get(Ingredient, i).allergens for i in ids):
+                if exclusions.intersection(ids) or recipe_has_allergen(db, ids, blocked_allergens):
                     excluded = True
                     break
                 buy_ids = [i for i in ids if i not in pantry_set] or ids
@@ -763,7 +1004,9 @@ class GeminiProvider:
                 continue
 
             quote = recipe_quote(db, selections)
-            if quote["missing"] or (ctx["budget"] is not None and quote["total"] > ctx["budget"]):
+            if quote["missing"]:
+                continue
+            if intent != "meal" and ctx["budget"] is not None and quote["total"] > ctx["budget"]:
                 continue
 
             result["suggestions"].append(
@@ -779,10 +1022,14 @@ class GeminiProvider:
                 }
             )
 
-        # Guarantee custom recipes created during tool calling are surfaced if Gemini omitted IDs
         if not result["suggestions"] and custom_cache:
             for sid, built in list(custom_cache.items())[:3]:
                 custom_recipe = built["recipe"]
+                c_ing_ids = [x["id"] for x in custom_recipe["ingredients"]]
+                if exclusions.intersection(c_ing_ids) or recipe_has_allergen(
+                    db, c_ing_ids, blocked_allergens
+                ):
+                    continue
                 result["suggestions"].append(
                     {
                         "id": sid,
@@ -809,7 +1056,7 @@ class GeminiProvider:
                             select(RecipeIngredient.ingredient_id).where(RecipeIngredient.recipe_id == r.id)
                         )
                     )
-                    if exclusions.intersection(ids):
+                    if exclusions.intersection(ids) or recipe_has_allergen(db, ids, blocked_allergens):
                         excluded = True
                         break
                     buy_ids = [i for i in ids if i not in pantry_set] or ids
@@ -845,9 +1092,19 @@ class GeminiProvider:
             ctx["shown"] = list(
                 dict.fromkeys(ctx.get("shown", []) + [s["id"] for s in result["suggestions"]])
             )[-30:]
-        else:
-            fallback_res = self.fallback.recommend(db, content, context)
-            result["suggestions"] = fallback_res["suggestions"]
+        elif not result["lunch_suggestions"]:
+            # Safe fallback that still enforces allergen & dislike exclusions from memory
+            safe_ctx = {
+                **{k: v for k, v in ctx.items() if k != "history"},
+                "excluded": sorted(exclusions | ({"fish"} if "fish" in blocked_allergens else set())),
+            }
+            fallback_res = self.fallback.recommend(db, content, safe_ctx)
+            filtered_fallback = []
+            for s in fallback_res["suggestions"]:
+                s_ings = [iid for sel in s["selections"] for iid in sel["ingredient_ids"]]
+                if not recipe_has_allergen(db, s_ings, blocked_allergens):
+                    filtered_fallback.append(s)
+            result["suggestions"] = filtered_fallback
             result["products"] = fallback_res["products"]
             if not result["message"]:
                 result["message"] = fallback_res["message"]

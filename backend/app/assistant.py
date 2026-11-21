@@ -22,12 +22,25 @@ def contains(text, phrase):
 class RuleBasedProvider:
     def recommend(self, db, content, context):
         text = normalize(content)
-        ctx = {"servings": 2, "budget": None, "minutes": None, "excluded": [], "shown": [], **context}
+        memory = context.get("memory") or {}
+        pantry_set = set(str(x) for x in context.get("pantry", []))
+        seed_excluded = list(context.get("excluded", [])) + list(memory.get("dislikes", []))
+        ctx = {
+            "servings": 2,
+            "budget": None,
+            "minutes": None,
+            "excluded": sorted(set(seed_excluded)),
+            "shown": [],
+            **{k: v for k, v in context.items() if k not in {"history", "pantry"}},
+        }
+        if pantry_set:
+            ctx["pantry"] = sorted(pantry_set)
         result = {
             "mode": "rules",
             "message": "",
             "suggestions": [],
             "products": [],
+            "lunch_suggestions": [],
             "health_advisory": None,
             "context": ctx,
         }
@@ -172,10 +185,11 @@ class RuleBasedProvider:
                 # Keep allergen metadata check explicit for future provider integrations.
                 if "fish" in exclusions and any("fish" in db.get(Ingredient, i).allergens for i in ids):
                     excluded = True
+                buy_ids = [i for i in ids if i not in pantry_set] or ids if pantry_set else ids
                 variant = f"{r.id}-nhat" if ctx.get("lighter") else None
                 selections.append(
                     RecipeSelection(
-                        recipe_id=r.id, servings=ctx["servings"], ingredient_ids=ids, variant_id=variant
+                        recipe_id=r.id, servings=ctx["servings"], ingredient_ids=buy_ids, variant_id=variant
                     )
                 )
             if excluded:
@@ -212,6 +226,8 @@ class RuleBasedProvider:
 def get_recommendation_provider() -> RecommendationProvider:
     import os
 
+    if os.getenv("DISABLE_LIVE_GEMINI") == "1":
+        return RuleBasedProvider()
     gemini_key = os.getenv("GEMINI_API_KEY")
     if gemini_key:
         from .gemini import GeminiProvider
