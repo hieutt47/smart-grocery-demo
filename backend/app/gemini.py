@@ -39,48 +39,13 @@ LAST_STATUS: dict[str, Any] = {
 }
 
 SYSTEM_INSTRUCTION = """Bạn là trợ lý tư vấn ăn uống thông minh của Bữa Nhà — chuyên đồng hành cùng dân văn phòng trẻ và người bận rộn.
-Nhiệm vụ của bạn là lắng nghe nhu cầu bữa trưa, bữa tối, ăn vặt hoặc nấu nhanh bằng tiếng Việt tự nhiên và gợi ý món ăn phù hợp nhất từ danh mục công thức có sẵn.
-
-Danh mục 22 món ăn có sẵn:
-- ga-rang-gung: Gà rang gừng (30 phút, món mặn, nguyên liệu: thịt gà, gừng, hành lá, nước mắm, dầu ăn)
-- bo-xao-ca-chua: Bò xào cà chua (20 phút, món mặn nhanh, nguyên liệu: thịt bò, cà chua, tỏi, nước tương, dầu ăn)
-- trung-chien-hanh: Trứng chiên hành (10 phút, nhanh tiết kiệm, nguyên liệu: trứng gà, hành lá, dầu ăn, muối)
-- canh-cai-dau-hu: Canh cải đậu hũ (15 phút, canh thanh mát nhanh, nguyên liệu: rau cải, đậu hũ, gừng, muối)
-- dau-hu-sot-ca: Đậu hũ sốt cà chua (20 phút, món mặn thanh đạm, nguyên liệu: đậu hũ, cà chua, hành lá, dầu ăn, muối)
-- ca-thu-kho: Cá thu kho gừng (35 phút, món mặn đậm đà, nguyên liệu: cá thu, gừng, nước mắm, đường, dầu ăn)
-- canh-bi-tom: Canh bí đỏ nấu tôm (25 phút, canh ngọt bùi, nguyên liệu: bí đỏ, tôm, hành lá, muối)
-- rau-muong-xao: Rau muống xào tỏi (15 phút, món rau nhanh giòn, nguyên liệu: rau muống, tỏi, dầu ăn, muối)
-- thit-rang: Thịt heo rang gừng (25 phút, món mặn cơm nhà, nguyên liệu: thịt heo, gừng, nước mắm, đường, dầu ăn)
-- canh-ca-trung: Canh cà chua trứng (15 phút, canh thanh nhẹ nhanh, nguyên liệu: cà chua, trứng gà, hành lá, dầu ăn, muối)
-- salad-dua-leo: Salad dưa leo cà chua (10 phút, món thanh mát ăn sống, nguyên liệu: dưa leo, cà chua, xà lách, chanh, dầu ăn, muối)
-- mi-xao-rau: Mì xào rau củ (20 phút, món ăn nhanh tiện lợi, nguyên liệu: mì sợi, cà rốt, rau cải, nấm, dầu ăn, nước tương)
-- thit-kho-trung: Thịt kho trứng / thịt kho tàu (40 phút, món mặn truyền thống đậm đà, nguyên liệu: thịt heo, trứng gà, nước mắm, đường, tỏi, tiêu)
-- canh-chua-ca: Canh chua cá (25 phút, canh chua ngọt thanh mát đưa cơm, nguyên liệu: cá thu, cà chua, chanh, hành lá, nước mắm, ớt tươi)
-- tom-rim-man-ngot: Tôm rim mặn ngọt (20 phút, món tôm đậm vị đưa cơm, nguyên liệu: tôm, tỏi, hành lá, nước mắm, đường, dầu ăn, tiêu)
-- bo-xao-rau-muong: Bò xào rau muống (15 phút, món xào giòn đậm đà, nguyên liệu: thịt bò, rau muống, tỏi, dầu ăn, nước tương)
-- thit-heo-xao-chua-ngot: Thịt heo xào chua ngọt (25 phút, món mặn sốt chua ngọt hấp dẫn, nguyên liệu: thịt heo, cà chua, hành lá, chanh, đường, nước mắm, dầu ăn)
-- canh-cai-thit-bam: Canh cải thịt băm (15 phút, canh thanh nhẹ ngọt nước, nguyên liệu: rau cải, thịt heo, gừng, muối, nước mắm)
-- dau-hu-chien-gion: Đậu hũ chiên giòn (12 phút, món chay thanh đạm giòn rụm, nguyên liệu: đậu hũ, dầu ăn, nước tương, ớt tươi)
-- ga-xao-nam: Gà xào nấm tươi (20 phút, món gà xào nấm ngọt thanh, nguyên liệu: thịt gà, nấm, cà rốt, hành lá, dầu ăn, nước tương)
-- canh-khoai-tay-thit: Canh khoai tây hầm thịt (30 phút, canh củ hầm ngọt bùi, nguyên liệu: khoai tây, cà rốt, thịt heo, hành lá, muối)
-- trung-cuon-rau-cu: Trứng cuộn rau củ (15 phút, món trứng màu sắc đẹp mắt dinh dưỡng, nguyên liệu: trứng gà, cà rốt, nấm, hành lá, dầu ăn, muối)
-
-Danh mục 6 mâm cơm gia đình:
-- bua-nhanh: Bữa cơm nhẹ nhàng (gồm trung-chien-hanh + canh-cai-dau-hu, khoảng 25 phút)
-- bua-gia-dinh: Bữa nhà ấm áp (gồm thit-rang + rau-muong-xao + canh-ca-trung, khoảng 55 phút)
-- bua-rau: Bữa nhiều rau thanh đạm (gồm dau-hu-sot-ca + canh-cai-dau-hu, khoảng 35 phút)
-- bua-com-kho: Bữa cơm đậm đà (gồm thit-kho-trung + canh-cai-thit-bam + salad-dua-leo, khoảng 55 phút)
-- bua-ha-nhiet: Bữa cơm thanh mát (gồm bo-xao-rau-muong + canh-chua-ca, khoảng 40 phút)
-- bua-cuoi-tuan: Bữa sum họp gia đình (gồm tom-rim-man-ngot + canh-khoai-tay-thit + dau-hu-chien-gion, khoảng 50 phút)
-
-Danh mục 36 sản phẩm thô (chỉ khi khách muốn mua đồ lẻ, không nấu theo công thức):
-chicken (Thịt gà), beef (Thịt bò), pork (Thịt heo), fish (Cá thu), shrimp (Tôm), eggs (Trứng gà), tofu (Đậu hũ), tomato (Cà chua), greens (Rau cải), spinach (Rau muống), ginger (Gừng), garlic (Tỏi), onion (Hành lá), carrot (Cà rốt), potato (Khoai tây), pumpkin (Bí đỏ), cucumber (Dưa leo), lettuce (Xà lách), mushroom (Nấm), lime (Chanh), rice (Gạo thơm), noodles (Mì sợi), oil (Dầu ăn), fish-sauce (Nước mắm), soy-sauce (Nước tương), salt (Muối), sugar (Đường), pepper (Tiêu), banana (Chuối), orange (Cam), chili (Ớt tươi), shallot (Hành tím), corn (Bắp ngọt), watermelon (Dưa hấu), mango (Xoài cát), yogurt (Sữa chua).
+Nhiệm vụ của bạn là lắng nghe nhu cầu bữa trưa, bữa tối, ăn vặt hoặc nấu nhanh bằng tiếng Việt tự nhiên và gợi ý món ăn phù hợp nhất từ danh sách ứng viên được cung cấp.
 
 Quy tắc phản hồi:
 1. Trả về định dạng JSON thuần túy (JSON object) theo đúng schema được yêu cầu.
 2. Giọng điệu thân thiện, trẻ trung, hiểu tâm lý dân văn phòng bận rộn.
-3. BẮT BUỘC dùng chính xác mã ID trong danh sách trên cho selected_ids (ví dụ: 'ga-rang-gung', 'bo-xao-ca-chua', 'bua-nhanh'), không tự dịch hay bịa món ngoài danh mục.
-4. ĐA DẠNG GỢI Ý: Kiểm tra danh sách `shown` trong ngữ cảnh hội thoại; TUYỆT ĐỐI ưu tiên chọn các món KHÁC với những món đã nằm trong `shown` (trừ khi người dùng hỏi đích danh món đó), để mỗi câu hỏi mang lại gợi ý mới mẻ, không lặp lại nhàm chán.
+3. BẮT BUỘC dùng chính xác mã ID trong danh sách ứng viên (hoặc danh sách mâm cơm) được cung cấp ở prompt cho `selected_ids`, không tự dịch hay bịa món ngoài danh sách.
+4. ĐA DẠNG GỢI Ý: Kiểm tra danh sách `shown` trong ngữ cảnh hội thoại; TUYỆT ĐỐI ưu tiên chọn các món KHÁC với những món đã nằm trong `shown` (trừ khi người dùng hỏi đích danh món đó).
 5. Trích xuất chính xác:
    - servings: số người ăn (số nguyên >= 1; giữ ngữ cảnh nếu là câu hỏi tiếp nối, mặc định 1–2 nếu không nhắc)
    - budget: ngân sách VND nếu câu hiện tại có nhắc (ví dụ: "100k" -> 100000, "50k" -> 50000; trả về null nếu người dùng chuyển sang chủ đề không giới hạn ngân sách)
@@ -91,8 +56,63 @@ Quy tắc phản hồi:
    - selected_product_ids: danh sách mã sản phẩm nếu khách muốn mua lẻ (ví dụ ["beef", "tomato"])
    - lighter: boolean (true nếu khách yêu cầu nêm nhạt, ít mặn, thanh đạm, eat clean hơn)
    - message: lời nhắn tiếng Việt tự nhiên, ngắn gọn gửi đến người dùng, giải thích tại sao món này hợp với yêu cầu.
-6. Nếu trong ngữ cảnh có `pantry` (danh sách gia vị/nguyên liệu khách đã có sẵn ở nhà như dầu ăn, nước mắm, muối, đường...), chi phí nguyên liệu đã được trừ phần gia vị này nên có thể gợi ý các món đa dạng hơn (như đậu hũ sốt cà, canh cải thịt băm, bò xào, gà xào nấm...).
+6. Nếu trong ngữ cảnh có `pantry` (gia vị sẵn có ở nhà), chi phí ứng viên đã trừ phần gia vị này.
 """
+
+
+def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int = 25) -> str:
+    """SQL Pre-filter: filter 60+ recipes down to top candidate matches for Gemini."""
+    text = normalize(content)
+    exclusions = set(str(x) for x in ctx.get("excluded", []))
+    pantry_set = set(str(x) for x in ctx.get("pantry", []))
+    shown_set = set(str(x) for x in ctx.get("shown", []))
+    servings = max(1, min(6, int(ctx.get("servings") or 2)))
+
+    recipes = list(db.scalars(select(Recipe).order_by(Recipe.minutes, Recipe.id)))
+    scored: list[tuple[int, int, str]] = []
+
+    for r in recipes:
+        ing_ids = list(
+            db.scalars(select(RecipeIngredient.ingredient_id).where(RecipeIngredient.recipe_id == r.id))
+        )
+        if exclusions.intersection(ing_ids):
+            continue
+        if "fish" in exclusions and any(
+            (ing := db.get(Ingredient, iid)) is not None and "fish" in ing.allergens for iid in ing_ids
+        ):
+            continue
+
+        buy_ids = [i for i in ing_ids if i not in pantry_set] or ing_ids
+        quote = recipe_quote(
+            db,
+            [RecipeSelection(recipe_id=r.id, servings=servings, ingredient_ids=buy_ids, variant_id=None)],
+        )
+        if quote["missing"]:
+            continue
+
+        est_total = quote["total"]
+        score = 0
+        if r.id not in shown_set:
+            score += 50
+        if normalize(r.name) in text or any(normalize(t) in text for t in r.tags):
+            score += 30
+        if ("eat clean" in text or "giam can" in text or "it dau" in text or "thanh dam" in text) and "eat-clean" in r.tags:
+            score += 35
+        if ("nhanh" in text or "met" in text or "15" in text) and r.minutes <= 15:
+            score += 25
+        if ("com hop" in text or "mang di lam" in text) and "món mặn" in r.tags:
+            score += 15
+        if est_total <= 60000:
+            score += 10
+
+        tag_str = ", ".join(r.tags)
+        line = f"- {r.id}: {r.name} ({r.minutes} phút, ~{est_total}đ, tags: {tag_str})"
+        scored.append((-score, r.minutes, line))
+
+    scored.sort(key=lambda x: (x[0], x[1]))
+    top_recipes = "\n".join(item[2] for item in scored[:limit])
+    meal_lines = "\n".join(f"- {m['id']}: {m['name']} ({' + '.join(m['recipe_ids'])})" for m in MEALS)
+    return f"Danh sách món ứng viên đã lọc ({min(limit, len(scored))} món):\n{top_recipes}\n\nDanh mục mâm cơm:\n{meal_lines}"
 
 
 def extract_json(raw: str) -> dict[str, Any]:
@@ -111,7 +131,12 @@ def extract_json(raw: str) -> dict[str, Any]:
 
 
 def call_gemini(
-    api_key: str, model: str, prompt: str, context: dict[str, Any], timeout: int = 6
+    api_key: str,
+    model: str,
+    prompt: str,
+    context: dict[str, Any],
+    candidates_text: str = "",
+    timeout: int = 6,
 ) -> dict[str, Any] | None:
     global ACTIVE_WORKING_MODEL
     clean_key = api_key.strip().strip('"').strip("'")
@@ -125,7 +150,11 @@ def call_gemini(
                 "role": "user",
                 "parts": [
                     {
-                        "text": f"Ngữ cảnh hội thoại trước đó: {json.dumps(context, ensure_ascii=False)}\n\nTin nhắn người dùng: {prompt}"
+                        "text": (
+                            f"{candidates_text}\n\n"
+                            f"Ngữ cảnh hội thoại trước đó: {json.dumps(context, ensure_ascii=False)}\n\n"
+                            f"Tin nhắn người dùng: {prompt}"
+                        )
                     }
                 ],
             }
@@ -233,8 +262,9 @@ class GeminiProvider:
                 "context": ctx,
             }
 
-        # Call Gemini model (fast-path pinned)
-        llm_data = call_gemini(self.api_key, self.model, content, ctx)
+        # Build SQL Pre-filtered candidate list before calling Gemini
+        candidates_text = build_dynamic_candidates(db, content, ctx, limit=25)
+        llm_data = call_gemini(self.api_key, self.model, content, ctx, candidates_text=candidates_text)
         if not llm_data:
             res = self.fallback.recommend(db, content, context)
             if LAST_STATUS.get("error"):
