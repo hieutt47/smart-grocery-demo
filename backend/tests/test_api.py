@@ -39,6 +39,46 @@ def test_analytics_events_and_summary(client):
     assert summary["by_event"]["share_click"] >= 1
 
 
+def test_custom_recipe_quote_endpoint(client):
+    res2 = client.post(
+        "/api/v1/custom-recipe-quote",
+        json={
+            "servings": 2,
+            "base_servings": 2,
+            "ingredients": [
+                {"ingredient_id": "chicken-breast", "quantity": 250},
+                {"ingredient_id": "broccoli", "quantity": 200},
+            ],
+        },
+    )
+    assert res2.status_code == 200
+    assert res2.json()["total"] == 47000
+
+    res6 = client.post(
+        "/api/v1/custom-recipe-quote",
+        json={
+            "servings": 6,
+            "base_servings": 2,
+            "ingredients": [
+                {"ingredient_id": "chicken-breast", "quantity": 250},
+                {"ingredient_id": "broccoli", "quantity": 200},
+            ],
+        },
+    )
+    assert res6.status_code == 200
+    assert res6.json()["total"] > 47000
+
+    bad = client.post(
+        "/api/v1/custom-recipe-quote",
+        json={
+            "servings": 2,
+            "base_servings": 2,
+            "ingredients": [{"ingredient_id": "nonexistent", "quantity": 100}],
+        },
+    )
+    assert bad.status_code == 400
+
+
 def test_search(client):
     assert client.get("/api/v1/products?q=thit%20bo").json()[0]["id"] == "beef"
     assert client.get("/api/v1/products?q=zzzz").json() == []

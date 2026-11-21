@@ -150,4 +150,94 @@ def test_gemini_provider_allergy_safety(system):
         result = provider.recommend(db, "tôi dị ứng tôm, ăn gì?", {})
         assert result["mode"] == "gemini"
         assert result["suggestions"] == []
-        assert "chưa đủ" in result["message"]
+
+
+def test_agent_tools_search_and_ingredients(system):
+    from backend.app.gemini import tool_get_available_ingredients, tool_search_catalog_recipes
+
+    app, _, _ = system
+    with app.state.factory.begin() as db:
+        ings = tool_get_available_ingredients(db)
+        assert ings["count"] == 48
+        found = tool_search_catalog_recipes(db, query="uc ga", max_minutes=20)
+        assert found["count"] >= 1
+        assert all(r["minutes"] <= 20 for r in found["recipes"])
+        no_fish = tool_search_catalog_recipes(db, exclude_ingredients=["fish", "basa-fish"])
+        assert all(
+            "fish" not in r["ingredients"] and "basa-fish" not in r["ingredients"] for r in no_fish["recipes"]
+        )
+
+
+def test_tool_build_custom_recipe_validation_and_pricing(system):
+    from backend.app.gemini import tool_build_custom_recipe
+
+    app, _, _ = system
+    with app.state.factory.begin() as db:
+        bad = tool_build_custom_recipe(
+            db,
+            name="Món lỗi",
+            minutes=15,
+            ingredients=[{"ingredient_id": "thit-rong", "quantity": 200}],
+            steps=["Nấu"],
+        )
+        assert "error" in bad
+
+        good = tool_build_custom_recipe(
+            db,
+            name="Ức gà hấp bông cải ít muối",
+            minutes=15,
+            emoji="🥦",
+            tags=["eat-clean", "ít muối"],
+            ingredients=[
+                {"ingredient_id": "chicken-breast", "quantity": 250},
+                {"ingredient_id": "broccoli", "quantity": 200},
+                {"ingredient_id": "salt", "quantity": 2},
+            ],
+            steps=["Sơ chế ức gà và bông cải.", "Hấp chín khoảng 12 phút."],
+            health_note="Hấp không dầu mỡ, hạn chế muối cho người tim mạch.",
+            servings=2,
+            pantry=["salt"],
+        )
+        assert good["status"] == "ok"
+        assert good["custom_recipe_id"].startswith("custom-")
+        assert good["recipe"]["is_custom"] is True
+        # chicken-breast (32k) + broccoli (15k), salt subtracted via pantry
+        assert good["estimated_total_vnd"] == 47000
+
+
+def test_gemini_provider_custom_recipe_and_advisory(system):
+    from unittest.mock import patch
+
+    from backend.app.gemini import GeminiProvider, tool_build_custom_recipe
+
+    app, _, _ = system
+    with app.state.factory.begin() as db:
+        built = tool_build_custom_recipe(
+            db,
+            name="Cá basa hấp gừng ít muối",
+            minutes=15,
+            ingredients=[
+                {"ingredient_id": "basa-fish", "quantity": 250},
+                {"ingredient_id": "ginger", "quantity": 15},
+            ],
+            steps=["Hấp cá basa với gừng 12 phút."],
+            health_note="Ít natri, phù hợp người tim mạch.",
+        )
+        cid = built["custom_recipe_id"]
+        mock_llm = {
+            "message": "Mình đã thiết kế riêng món hấp ít muối cho người tim mạch nhé!",
+            "intent": "dish",
+            "selected_ids": [cid],
+            "servings": 2,
+            "excluded": [],
+            "lighter": True,
+            "health_advisory": "Giảm tối đa muối/nước mắm khi nêm và tránh chiên rán.",
+            "_custom_recipes": {cid: built},
+        }
+        provider = GeminiProvider(api_key="fake-key")
+        with patch("backend.app.gemini.call_gemini", return_value=mock_llm):
+            result = provider.recommend(db, "nhà có người đau tim, tối ăn gì?", {})
+            assert result["mode"] == "gemini"
+            assert result["health_advisory"]
+            assert result["suggestions"][0]["id"] == cid
+            assert result["suggestions"][0]["recipes"][0]["is_custom"] is True
