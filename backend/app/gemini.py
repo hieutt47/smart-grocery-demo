@@ -78,19 +78,20 @@ chicken (Thịt gà), beef (Thịt bò), pork (Thịt heo), fish (Cá thu), shri
 
 Quy tắc phản hồi:
 1. Trả về định dạng JSON thuần túy (JSON object) theo đúng schema được yêu cầu.
-2. Giọng điệu thân thiện, chu đáo, hiểu tâm lý người nội trợ/người đi làm về bận rộn.
+2. Giọng điệu thân thiện, trẻ trung, hiểu tâm lý dân văn phòng bận rộn.
 3. BẮT BUỘC dùng chính xác mã ID trong danh sách trên cho selected_ids (ví dụ: 'ga-rang-gung', 'bo-xao-ca-chua', 'bua-nhanh'), không tự dịch hay bịa món ngoài danh mục.
-4. Trích xuất chính xác:
-   - servings: số người ăn (1 đến 6, giữ nguyên ngữ cảnh trước đó hoặc mặc định 2)
-   - budget: ngân sách VND nếu có (ví dụ: "100k" -> 100000, "150 nghìn" -> 150000; null nếu không nhắc)
-   - minutes: thời gian nấu tối đa nếu khách yêu cầu nhanh (ví dụ: 20 phút -> 20; "nhanh"/"mệt" -> 30; null nếu không giới hạn)
+4. ĐA DẠNG GỢI Ý: Kiểm tra danh sách `shown` trong ngữ cảnh hội thoại; TUYỆT ĐỐI ưu tiên chọn các món KHÁC với những món đã nằm trong `shown` (trừ khi người dùng hỏi đích danh món đó), để mỗi câu hỏi mang lại gợi ý mới mẻ, không lặp lại nhàm chán.
+5. Trích xuất chính xác:
+   - servings: số người ăn (số nguyên >= 1; giữ ngữ cảnh nếu là câu hỏi tiếp nối, mặc định 1–2 nếu không nhắc)
+   - budget: ngân sách VND nếu câu hiện tại có nhắc (ví dụ: "100k" -> 100000, "50k" -> 50000; trả về null nếu người dùng chuyển sang chủ đề không giới hạn ngân sách)
+   - minutes: thời gian nấu tối đa nếu có nhắc (ví dụ: 15 phút -> 15; "nhanh"/"mệt" -> 25; trả về null nếu không giới hạn)
    - excluded: danh sách mã nguyên liệu/sản phẩm khách không muốn ăn hoặc muốn đổi (ví dụ: "không thích cá" -> ["fish"], "tránh tôm" -> ["shrimp"])
    - intent: "dish" (gợi ý món lẻ), "meal" (gợi ý mâm cơm), "products" (chỉ tìm mua nguyên liệu thô), "general" (hỏi đáp chung)
-   - selected_ids: danh sách 1-3 mã món ăn (recipe ID) hoặc mã mâm cơm (meal ID) phù hợp nhất với yêu cầu
+   - selected_ids: danh sách 2-3 mã món ăn (recipe ID) hoặc mã mâm cơm (meal ID) phù hợp nhất và CHƯA có trong `shown`
    - selected_product_ids: danh sách mã sản phẩm nếu khách muốn mua lẻ (ví dụ ["beef", "tomato"])
-   - lighter: boolean (true nếu khách yêu cầu nêm nhạt, ít mặn, thanh đạm hơn)
-   - message: lời nhắn tiếng Việt tự nhiên, ấm áp gửi đến người dùng, giải thích ngắn gọn tại sao món này lại hợp với mong muốn của họ.
-5. Nếu trong ngữ cảnh có `pantry` (danh sách gia vị/nguyên liệu khách đã có sẵn ở nhà như dầu ăn, nước mắm, muối, đường...), hãy lưu ý điều này và nhắn nhủ rằng khách chỉ cần mua các nguyên liệu chính còn thiếu, giúp tiết kiệm chi phí!
+   - lighter: boolean (true nếu khách yêu cầu nêm nhạt, ít mặn, thanh đạm, eat clean hơn)
+   - message: lời nhắn tiếng Việt tự nhiên, ngắn gọn gửi đến người dùng, giải thích tại sao món này hợp với yêu cầu.
+6. Nếu trong ngữ cảnh có `pantry` (danh sách gia vị/nguyên liệu khách đã có sẵn ở nhà như dầu ăn, nước mắm, muối, đường...), chi phí nguyên liệu đã được trừ phần gia vị này nên có thể gợi ý các món đa dạng hơn (như đậu hũ sốt cà, canh cải thịt băm, bò xào, gà xào nấm...).
 """
 
 
@@ -129,7 +130,7 @@ def call_gemini(
                 ],
             }
         ],
-        "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
+        "generationConfig": {"temperature": 0.55, "responseMimeType": "application/json"},
     }
     data = json.dumps(payload).encode("utf-8")
     headers = {"Content-Type": "application/json", "User-Agent": "BuaNha-Demo/1.0"}
@@ -241,12 +242,19 @@ class GeminiProvider:
             return res
 
         # Parse extracted constraints
-        if isinstance(llm_data.get("servings"), int) and 1 <= llm_data["servings"] <= 6:
-            ctx["servings"] = llm_data["servings"]
-        if llm_data.get("budget") is not None and isinstance(llm_data["budget"], (int, float)):
-            ctx["budget"] = round(float(llm_data["budget"]))
-        if llm_data.get("minutes") is not None and isinstance(llm_data["minutes"], (int, float)):
-            ctx["minutes"] = int(llm_data["minutes"])
+        changing = "doi" in text or "khong thich" in text or "mon khac" in text
+        if isinstance(llm_data.get("servings"), (int, float)) and llm_data["servings"] >= 1:
+            ctx["servings"] = min(6, max(1, int(llm_data["servings"])))
+        if "budget" in llm_data:
+            if llm_data["budget"] is not None and isinstance(llm_data["budget"], (int, float)):
+                ctx["budget"] = round(float(llm_data["budget"]))
+            elif not changing:
+                ctx["budget"] = None
+        if "minutes" in llm_data:
+            if llm_data["minutes"] is not None and isinstance(llm_data["minutes"], (int, float)):
+                ctx["minutes"] = int(llm_data["minutes"])
+            elif not changing:
+                ctx["minutes"] = None
         if llm_data.get("lighter"):
             ctx["lighter"] = True
 
@@ -255,6 +263,7 @@ class GeminiProvider:
             ctx["excluded"] = sorted(set(ctx.get("excluded", []) + [str(x) for x in new_excluded]))
 
         exclusions = set(ctx["excluded"])
+        pantry_set = set(str(x) for x in ctx.get("pantry", []))
         intent = llm_data.get("intent", "dish")
         ai_message = llm_data.get("message", "").strip()
 
@@ -279,7 +288,6 @@ class GeminiProvider:
 
         # Intent: dish / meal suggestions
         selected_ids = llm_data.get("selected_ids", [])
-        changing = "doi" in text or "khong thich" in text or "mon khac" in text
 
         for raw_id in selected_ids:
             meal = resolve_meal(raw_id)
@@ -315,10 +323,11 @@ class GeminiProvider:
                 if "fish" in exclusions and any("fish" in db.get(Ingredient, i).allergens for i in ids):
                     excluded = True
                     break
+                buy_ids = [i for i in ids if i not in pantry_set] or ids
                 variant = f"{r.id}-nhat" if ctx.get("lighter") else None
                 selections.append(
                     RecipeSelection(
-                        recipe_id=r.id, servings=ctx["servings"], ingredient_ids=ids, variant_id=variant
+                        recipe_id=r.id, servings=ctx["servings"], ingredient_ids=buy_ids, variant_id=variant
                     )
                 )
 
