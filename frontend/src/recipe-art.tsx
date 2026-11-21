@@ -557,7 +557,53 @@ function TrungCuonRauCuArt({name, className, decorative}: ArtProps) {
   );
 }
 
-export function RecipeVisual({recipe, className, decorative = false}: {recipe: {id: string; name: string}; className?: string; decorative?: boolean}) {
+function GenericDishArt({
+  name,
+  emoji = '🍽️',
+  color = 'green',
+  className,
+  decorative
+}: {
+  name: string;
+  emoji?: string;
+  color?: string;
+  className?: string;
+  decorative?: boolean;
+}) {
+  const palette: Record<string, {bg: string; accent: string}> = {
+    green: {bg: '#edf4e7', accent: '#6b9453'},
+    yellow: {bg: '#fdf6df', accent: '#d4a12a'},
+    peach: {bg: '#fcedea', accent: '#d97a54'},
+    rose: {bg: '#fae8e8', accent: '#c95c5c'},
+    blue: {bg: '#e7f1f2', accent: '#508991'}
+  };
+  const {bg, accent} = palette[color] || palette.green;
+  return (
+    <ArtFrame bg={bg} accent={accent} name={name} className={className} decorative={decorative}>
+      <circle cx="180" cy="108" r="68" fill="#ffffff" stroke="#e4e6d8" strokeWidth="2.5" />
+      <circle cx="180" cy="108" r="54" fill={bg} />
+      <text
+        x="180"
+        y="124"
+        textAnchor="middle"
+        fontSize="54"
+        dominantBaseline="central"
+      >
+        {emoji}
+      </text>
+    </ArtFrame>
+  );
+}
+
+export function RecipeVisual({
+  recipe,
+  className,
+  decorative = false
+}: {
+  recipe: {id: string; name: string; emoji?: string; color?: string};
+  className?: string;
+  decorative?: boolean;
+}) {
   const id = recipe.id;
   const name = recipe.name;
 
@@ -575,15 +621,22 @@ export function RecipeVisual({recipe, className, decorative = false}: {recipe: {
   if (id.startsWith('rau-muong')) return <RauMuongXaoArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('thit-kho')) return <ThitKhoTrungArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('thit-heo-xao') || id.includes('chua-ngot')) return <ThitHeoXaoChuaNgotArt name={name} className={className} decorative={decorative} />;
-  if (id.startsWith('thit-rang') || id.startsWith('thit-heo')) return <ThitHeoRangGungArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('thit-rang') || id.startsWith('thit-heo-rang')) return <ThitHeoRangGungArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('canh-ca-trung') || id.startsWith('canh-ca-chua')) return <CanhCaChuaTrungArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('canh-khoai-tay')) return <CanhKhoaiTayThitArt name={name} className={className} decorative={decorative} />;
-  if (id.startsWith('salad')) return <SaladDuaLeoArt name={name} className={className} decorative={decorative} />;
-  if (id.startsWith('mi-xao')) return <MiXaoRauArt name={name} className={className} decorative={decorative} />;
-  if (id.startsWith('ca-thu')) return <CaThuKhoArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('salad-dua-leo')) return <SaladDuaLeoArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('mi-xao-rau')) return <MiXaoRauArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('ca-thu-kho')) return <CaThuKhoArt name={name} className={className} decorative={decorative} />;
   if (id.startsWith('tom-rim')) return <TomRimManNgotArt name={name} className={className} decorative={decorative} />;
-  if (id.startsWith('ga-xao')) return <GaXaoNamArt name={name} className={className} decorative={decorative} />;
+  if (id.startsWith('ga-xao-nam')) return <GaXaoNamArt name={name} className={className} decorative={decorative} />;
 
-  // Mặc định: Gà rang gừng ấm cúng
-  return <GaRangGungArt name={name} className={className} decorative={decorative} />;
+  return (
+    <GenericDishArt
+      name={name}
+      emoji={recipe.emoji}
+      color={recipe.color}
+      className={className}
+      decorative={decorative}
+    />
+  );
 }
