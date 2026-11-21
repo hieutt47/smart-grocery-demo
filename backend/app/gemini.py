@@ -38,8 +38,8 @@ LAST_STATUS: dict[str, Any] = {
     "error": None,
 }
 
-SYSTEM_INSTRUCTION = """Bạn là trợ lý tư vấn món ăn thông minh của Bữa Nhà (AI Smart Grocery & Robot Delivery).
-Nhiệm vụ của bạn là lắng nghe nhu cầu bữa ăn của cư dân chung cư bằng tiếng Việt tự nhiên và gợi ý món ăn phù hợp nhất từ danh mục món ăn và sản phẩm có sẵn trong cửa hàng.
+SYSTEM_INSTRUCTION = """Bạn là trợ lý tư vấn ăn uống thông minh của Bữa Nhà — chuyên đồng hành cùng dân văn phòng trẻ và người bận rộn.
+Nhiệm vụ của bạn là lắng nghe nhu cầu bữa trưa, bữa tối, ăn vặt hoặc nấu nhanh bằng tiếng Việt tự nhiên và gợi ý món ăn phù hợp nhất từ danh mục công thức có sẵn.
 
 Danh mục 22 món ăn có sẵn:
 - ga-rang-gung: Gà rang gừng (30 phút, món mặn, nguyên liệu: thịt gà, gừng, hành lá, nước mắm, dầu ăn)

@@ -12,13 +12,13 @@ import {
   Egg,
   Fish,
   Ham,
+  Heart,
   Leaf,
   LeafyGreen,
   Minus,
   Plus,
   Salad,
   Shell,
-  ShoppingBasket,
   Sparkles,
   Sprout,
   Users,
@@ -29,6 +29,7 @@ import {useState, useEffect, type ComponentType} from 'react';
 import {Link} from 'react-router-dom';
 import {money} from './api';
 import {useStore} from './context';
+import {getRecipeNutrition} from './nutrition';
 import {getPantryStaples, savePantryStaples, STAPLE_DEFINITIONS} from './pantry';
 import {RecipeVisual} from './recipe-art';
 import {
@@ -165,28 +166,43 @@ export function ProductCard({product: p, eager = false}: {product: Product; eage
 }
 
 export function RecipeCard({recipe: r}: {recipe: Recipe}) {
-  const primaryTag = r.tags?.find(t => ['món mặn', 'canh', 'món xào'].includes(t))
-    || r.tags?.find(t => ['gà', 'bò', 'heo', 'cá', 'tôm', 'trứng', 'đậu', 'rau', 'mì', 'nhanh'].includes(t))
-    || r.tags?.[0]
-    || 'Món ngon';
-  const tag = TAG_LABELS[primaryTag] || (primaryTag.charAt(0).toUpperCase() + primaryTag.slice(1));
+  const {isSaved, toggleSave} = useStore();
+  const saved = isSaved(r.id);
+  const nutrition = getRecipeNutrition(r.id);
+  const primaryTag =
+    r.tags?.find(t => ['món mặn', 'canh', 'món xào'].includes(t)) ||
+    r.tags?.find(t => ['gà', 'bò', 'heo', 'cá', 'tôm', 'trứng', 'đậu', 'rau', 'mì', 'nhanh'].includes(t)) ||
+    r.tags?.[0] ||
+    'Món ngon';
+  const tag = nutrition.eatClean ? 'Eat clean' : TAG_LABELS[primaryTag] || primaryTag.charAt(0).toUpperCase() + primaryTag.slice(1);
   return (
-    <Link
-      to={`/cook?ids=${r.id}`}
-      className="recipe-card"
-    >
+    <Link to={`/cook?ids=${r.id}`} className="recipe-card">
       <div className="recipe-art">
         <RecipeVisual recipe={r} className="recipe-photo-cover" decorative={true} />
         <span className="recipe-tag-badge">{tag}</span>
+        <button
+          type="button"
+          className={`recipe-save-btn ${saved ? 'saved' : ''}`}
+          aria-label={saved ? `Bỏ lưu ${r.name}` : `Lưu món ${r.name}`}
+          aria-pressed={saved}
+          onClick={e => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleSave(r.id);
+          }}
+        >
+          <Heart size={16} fill={saved ? 'currentColor' : 'none'} aria-hidden="true" />
+        </button>
       </div>
       <div className="recipe-body">
         <div className="recipe-meta">
           <span><Clock3 size={13} aria-hidden="true" /> {r.minutes} phút</span>
           <span><Users size={13} aria-hidden="true" /> {r.servings} người</span>
+          <span className="kcal-pill">~{nutrition.kcal} kcal</span>
         </div>
         <h3 className="recipe-title">{r.name}</h3>
         <span className="recipe-action-link">
-          Chọn nguyên liệu <ArrowRight size={15} aria-hidden="true" />
+          Xem công thức <ArrowRight size={15} aria-hidden="true" />
         </span>
       </div>
     </Link>
@@ -194,7 +210,7 @@ export function RecipeCard({recipe: r}: {recipe: Recipe}) {
 }
 
 export function Empty({title, text, to, label}: {title: string; text: string; to?: string; label?: string}) {
-  return <div className="empty-state" role="status"><span className="empty-icon"><ShoppingBasket size={38} strokeWidth={1.4} aria-hidden="true" /></span><h2>{title}</h2><p className="muted">{text}</p>{to && <Link className="button primary" to={to}>{label}<ArrowRight size={16} aria-hidden="true" /></Link>}</div>;
+  return <div className="empty-state" role="status"><span className="empty-icon"><Sparkles size={38} strokeWidth={1.4} aria-hidden="true" /></span><h2>{title}</h2><p className="muted">{text}</p>{to && <Link className="button primary" to={to}>{label}<ArrowRight size={16} aria-hidden="true" /></Link>}</div>;
 }
 
 export function LoadState({loading, error, retry}: {loading: boolean; error: string; retry: () => void}) {
@@ -208,7 +224,7 @@ export function PageTitle({eyebrow, title, description}: {eyebrow?: string; titl
 }
 
 export function DemoNote() {
-  return <p className="demo-note-box"><Leaf size={16} aria-hidden="true" /><span>Dữ liệu và giao hàng mô phỏng. Không thu tiền thật.</span></p>;
+  return <p className="demo-note-box"><Leaf size={16} aria-hidden="true" /><span>Gợi ý món ăn & chi phí tham khảo cho dân văn phòng · Hoàn toàn miễn phí.</span></p>;
 }
 
 export function PantryModal({open, onClose}: {open: boolean; onClose: () => void}) {

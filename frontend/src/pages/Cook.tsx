@@ -1,12 +1,13 @@
 import {useEffect, useState} from 'react';
 import {Link, useNavigate, useSearchParams} from 'react-router-dom';
-import {ArrowLeft, ArrowRight, ChefHat, Clock3, Info, ShoppingBasket, Sparkles, Users, UtensilsCrossed, X} from 'lucide-react';
+import {ArrowLeft, ChefHat, Clock3, Copy, Heart, Info, Share2, Sparkles, Users, UtensilsCrossed, X} from 'lucide-react';
 import {api, money} from '../api';
 import {useStore} from '../context';
 import {LoadState, PantryModal, Quantity} from '../components';
+import {getRecipeNutrition} from '../nutrition';
 import {getPantryStaples, isStaple, subscribePantry} from '../pantry';
 import {RecipeVisual} from '../recipe-art';
-import type {Cart, Quote, Recipe, Selection} from '../types';
+import type {Quote, Recipe, Selection} from '../types';
 
 export function Cook() {
   const [params] = useSearchParams();
@@ -25,7 +26,7 @@ export function Cook() {
   const [quoteRevision, setQuoteRevision] = useState(0);
   const [showPantry, setShowPantry] = useState(false);
   const [pantryIds, setPantryIds] = useState<string[]>(getPantryStaples());
-  const {cart, setCart, act, busy} = useStore();
+  const {notify, isSaved, toggleSave, shareItem} = useStore();
   const navigate = useNavigate();
   const lighter = params.get('lighter') === '1';
 
@@ -99,28 +100,19 @@ export function Cook() {
     }));
   }
 
-  async function add() {
-    const result = await act(
-      () => api<Cart>('/cart/ingredients', 'POST', {selections, expected_version: cart.version}),
-      'Đã thêm nguyên liệu được chọn vào giỏ hàng'
+  async function copyShoppingList() {
+    if (!quote?.items.length) return;
+    const dishTitle = recipes.map(r => r.name).join(' + ');
+    const lines = quote.items.map(
+      i => `- ${i.name}: ${Number(i.required.toFixed(2))} ${i.unit} (${i.quantity} gói ${i.pack_size} ${i.unit} · ~${money(i.subtotal)})`
     );
-    if (result) {
-      setCart(result);
-      navigate('/cart');
+    const text = `📝 Danh sách đi chợ (${dishTitle} · ${servings} người)\n${lines.join('\n')}\nƯớc tính tổng: ~${money(quote.total)}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      notify('Đã sao chép danh sách đi chợ!');
+    } catch {
+      notify('Không thể tự sao chép; hãy chọn và copy thủ công nhé.');
     }
-  }
-
-  async function addFruit(productId: string, productName: string) {
-    const result = await act(
-      () =>
-        api<Cart>('/cart', 'PATCH', {
-          items: [{product_id: productId, quantity: 1}],
-          mode: 'add',
-          expected_version: cart.version
-        }),
-      `Đã thêm ${productName} vào giỏ hàng`
-    );
-    if (result) setCart(result);
   }
 
   // Calculate staples present in recipe but NOT selected (saved money)
@@ -356,20 +348,20 @@ export function Cook() {
               ))}
             </div>
 
-            {/* Sticky Calculation & Cart Summary */}
-            <aside className="summary-card ingredient-summary" aria-label="Tóm tắt nguyên liệu cần mua">
+            {/* Sticky Checklist & Reference Cost Summary */}
+            <aside className="summary-card ingredient-summary" aria-label="Checklist nguyên liệu cần mua">
               <span className="summary-icon">
-                <ShoppingBasket size={24} aria-hidden="true" />
+                <UtensilsCrossed size={24} aria-hidden="true" />
               </span>
-              <h2>Mua đúng thứ bạn cần</h2>
+              <h2>Checklist đi chợ</h2>
               <p className="muted small">
-                Hệ thống cộng gộp định lượng và tự động làm tròn sang quy cách đóng gói bán của siêu thị.
+                Tích chọn nguyên liệu còn thiếu để hệ thống tính định lượng chuẩn và chi phí tham khảo.
               </p>
 
               {quoteLoading && (
                 <div className="quote-loading-state" role="status">
                   <span className="spinner" />
-                  <span>Đang tính toán số gói & chi phí…</span>
+                  <span>Đang tính định lượng & chi phí…</span>
                 </div>
               )}
 
@@ -387,9 +379,9 @@ export function Cook() {
                   <div className="quote-line" key={i.product_id}>
                     <div className="quote-line-info">
                       <strong>{i.name}</strong>
-                      <small>Cần {Number(i.required.toFixed(2))} {i.unit} → Mua {i.quantity} gói ({i.pack_size} {i.unit})</small>
+                      <small>Cần {Number(i.required.toFixed(2))} {i.unit} · {i.quantity} gói ({i.pack_size} {i.unit})</small>
                     </div>
-                    <span className="quote-line-price">{money(i.subtotal)}</span>
+                    <span className="quote-line-price">~{money(i.subtotal)}</span>
                   </div>
                 ))}
               </div>
@@ -403,24 +395,55 @@ export function Cook() {
               {!quote?.items.length && !quoteLoading && (
                 <div className="selection-hint">
                   <Info size={18} className="text-emerald" aria-hidden="true" />
-                  <span>Hãy tích chọn ít nhất một nguyên liệu bên trái để xem tính toán chi phí.</span>
+                  <span>Hãy tích chọn ít nhất một nguyên liệu bên trái để tạo danh sách đi chợ.</span>
                 </div>
               )}
 
               <div className="summary-total">
-                <span>Tạm tính ({quote?.items.length || 0} món)</span>
+                <span>Ước tính ({quote?.items.length || 0} món)</span>
                 <strong>{money(quote?.total || 0)}</strong>
               </div>
+              {recipes.length > 0 && (
+                <p className="small muted" style={{margin: '-8px 0 14px'}}>
+                  Năng lượng ước tính: ~{recipes.reduce((sum, r) => sum + getRecipeNutrition(r.id).kcal, 0)} kcal / người
+                </p>
+              )}
 
               <button
                 type="button"
                 className="button primary full"
-                disabled={busy || quoteLoading || !!quoteError || !quote?.items.length || !!quote?.missing.length}
-                onClick={() => void add()}
+                disabled={quoteLoading || !!quoteError || !quote?.items.length || !!quote?.missing.length}
+                onClick={() => void copyShoppingList()}
               >
-                <span>Thêm {quote?.items.length || 0} mục vào giỏ</span>
-                <ArrowRight size={17} aria-hidden="true" />
+                <Copy size={17} aria-hidden="true" />
+                <span>Sao chép danh sách đi chợ</span>
               </button>
+
+              <div className="cook-secondary-actions">
+                {recipes[0] && (
+                  <button
+                    type="button"
+                    className={`button secondary small-button ${isSaved(recipes[0].id) ? 'saved' : ''}`}
+                    onClick={() => toggleSave(recipes[0].id)}
+                  >
+                    <Heart size={15} fill={isSaved(recipes[0].id) ? 'currentColor' : 'none'} aria-hidden="true" />
+                    <span>{isSaved(recipes[0].id) ? 'Đã lưu' : 'Lưu món'}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="button secondary small-button"
+                  onClick={() =>
+                    void shareItem(
+                      `Công thức ${recipes.map(r => r.name).join(' + ')}`,
+                      `Khẩu phần ${servings} người · Xem cách nấu và nguyên liệu trên Bữa Nhà:`
+                    )
+                  }
+                >
+                  <Share2 size={15} aria-hidden="true" />
+                  <span>Chia sẻ</span>
+                </button>
+              </div>
 
               {savedStapleCount > 0 && quote && quote.items.length > 0 && (
                 <div className="pantry-savings-card">
@@ -429,52 +452,32 @@ export function Cook() {
                     <strong>Tiết kiệm ~{money(savedEstimate)} tiền gia vị</strong>
                   </div>
                   <p className="small muted">
-                    Bếp nhà mình đã có sẵn mắm muối dầu ăn. Thêm hoa quả tươi tráng miệng nhé?
+                    Bếp nhà mình đã có sẵn mắm muối dầu ăn, không cần mua thêm!
                   </p>
-                  <div className="cross-sell-chips">
-                    <button
-                      type="button"
-                      className="cross-sell-btn"
-                      disabled={busy}
-                      onClick={() => void addFruit('banana', 'Chuối')}
-                      aria-label="Thêm Chuối tráng miệng"
-                    >
-                      <span>+ 🍌 Chuối (18.000 ₫)</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="cross-sell-btn"
-                      disabled={busy}
-                      onClick={() => void addFruit('orange', 'Cam')}
-                      aria-label="Thêm Cam tươi tráng miệng"
-                    >
-                      <span>+ 🍊 Cam tươi (25.000 ₫)</span>
-                    </button>
-                  </div>
                 </div>
               )}
 
               <p className="small muted center mt-2">
-                Giá minh họa · Bạn có thể tùy chỉnh lại số lượng trong giỏ hàng
+                Chi phí ước tính tham khảo theo khẩu phần
               </p>
             </aside>
           </div>
 
           {/* Mobile Bottom Quick Action Bar */}
           {quote && quote.items.length > 0 && (
-            <div className="cook-mobile-bar" role="region" aria-label="Thanh chốt nguyên liệu">
+            <div className="cook-mobile-bar" role="region" aria-label="Thanh sao chép danh sách">
               <div className="cook-mobile-bar-info">
-                <span className="cook-mobile-bar-label">{quote.items.length} món cần mua</span>
-                <strong className="cook-mobile-bar-price">{money(quote.total)}</strong>
+                <span className="cook-mobile-bar-label">{quote.items.length} nguyên liệu</span>
+                <strong className="cook-mobile-bar-price">~{money(quote.total)}</strong>
               </div>
               <button
                 type="button"
                 className="button primary cook-mobile-bar-btn"
-                disabled={busy || quoteLoading || !!quoteError || !quote.items.length || !!quote.missing.length}
-                onClick={() => void add()}
+                disabled={quoteLoading || !!quoteError || !quote.items.length || !!quote.missing.length}
+                onClick={() => void copyShoppingList()}
               >
-                <span>Thêm vào giỏ</span>
-                <ArrowRight size={16} aria-hidden="true" />
+                <Copy size={15} aria-hidden="true" />
+                <span>Copy danh sách</span>
               </button>
             </div>
           )}

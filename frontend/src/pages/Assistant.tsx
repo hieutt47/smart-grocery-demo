@@ -1,21 +1,23 @@
 import {useEffect, useRef, useState} from 'react';
-import {Link} from 'react-router-dom';
-import {ArrowRight, Bot, Clock3, RotateCcw, Send, Sparkles, Store} from 'lucide-react';
+import {Link, useSearchParams} from 'react-router-dom';
+import {ArrowRight, Bot, ChefHat, Clock3, Dices, Heart, RotateCcw, Send, Share2, Sparkles} from 'lucide-react';
 import {api, money} from '../api';
 import {useResource, useStore} from '../context';
-import {LoadState, PageTitle, PantryModal, ProductCard} from '../components';
+import {LoadState, PageTitle, PantryModal} from '../components';
+import {OFFICE_LUNCH_OPTIONS} from '../nutrition';
 import {getPantryStaples, subscribePantry} from '../pantry';
 import {RecipeVisual} from '../recipe-art';
 import type {AssistantResult, ChatMessage, Conversation} from '../types';
 
 const PROMPTS = [
-  {label: '2 người · 100k', text: 'Tối nay 2 người, ngân sách khoảng 100k, không biết ăn gì.'},
-  {label: 'Món thanh mát · 20p', text: 'Có món nào thanh mát nấu trong 20 phút không?'},
-  {label: 'Gà rang gừng thơm', text: 'Tôi muốn nấu món gà rang gừng thơm ngon.'},
-  {label: '3 người · 150k', text: 'Lên thực đơn bữa cơm cho 3 người tầm 150k.'}
+  {label: 'Trưa nay · 50k', text: 'Trưa nay ăn gì nhẹ bụng, tầm 50k cho 1 người?'},
+  {label: 'Nấu nhanh 15p', text: 'Đi làm về muộn, có món nào nấu nhanh trong 15 phút?'},
+  {label: 'Eat clean · ít dầu', text: 'Có món nào thanh đạm, ít dầu mỡ, dễ mang đi làm không?'},
+  {label: '2 người · 100k', text: 'Tối nay 2 người, ngân sách khoảng 100k, không biết ăn gì.'}
 ];
 
 export function Assistant() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const resource = useResource<Conversation | null>('/assistant/conversation');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -24,8 +26,11 @@ export function Assistant() {
   const [error, setError] = useState('');
   const [showPantry, setShowPantry] = useState(false);
   const [pantryIds, setPantryIds] = useState<string[]>(getPantryStaples());
-  const {ready} = useStore();
+  const [mode, setMode] = useState<'cook' | 'lunch'>(() => (searchParams.get('mode') === 'lunch' ? 'lunch' : 'cook'));
+  const [lunchSeed, setLunchSeed] = useState(0);
+  const {ready, isSaved, toggleSave, shareItem} = useStore();
   const bottom = useRef<HTMLDivElement>(null);
+  const sentQueryRef = useRef<string | null>(null);
 
   useEffect(() => subscribePantry(setPantryIds), []);
 
@@ -41,6 +46,24 @@ export function Assistant() {
       bottom.current?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
     }
   }, [messages]);
+
+  useEffect(() => {
+    const modeParam = searchParams.get('mode');
+    if (modeParam === 'lunch') {
+      setMode('lunch');
+    }
+    const qParam = searchParams.get('q')?.trim();
+    if (!qParam || !ready || resource.loading || sending || sentQueryRef.current === qParam) return;
+    sentQueryRef.current = qParam;
+    const next = new URLSearchParams(searchParams);
+    next.delete('q');
+    setSearchParams(next, {replace: true});
+    void send(qParam);
+  });
+
+  const lunchSuggestions = Array.from({length: 3}, (_, idx) => {
+    return OFFICE_LUNCH_OPTIONS[(lunchSeed * 3 + idx) % OFFICE_LUNCH_OPTIONS.length];
+  });
 
   async function send(content = input) {
     if (!content.trim() || sending) return;
@@ -145,15 +168,88 @@ export function Assistant() {
             </p>
           </div>
 
-          <Link to="/products" className="text-link">
-            <Store size={15} aria-hidden="true" />
-            <span>Mình muốn tự đi chợ chọn hàng</span>
+          <Link to="/recipes" className="text-link">
+            <ChefHat size={15} aria-hidden="true" />
+            <span>Xem tất cả công thức</span>
             <ArrowRight size={14} aria-hidden="true" />
           </Link>
         </aside>
 
         {/* Khung trò chuyện */}
         <section className="chat-panel" aria-label="Khung trò chuyện trợ lý">
+          <div className="chat-mode-bar" role="tablist" aria-label="Chế độ tư vấn">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'cook'}
+              className={`chat-mode-tab ${mode === 'cook' ? 'active' : ''}`}
+              onClick={() => setMode('cook')}
+            >
+              🍳 Tối tự nấu (AI)
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'lunch'}
+              className={`chat-mode-tab ${mode === 'lunch' ? 'active' : ''}`}
+              onClick={() => setMode('lunch')}
+            >
+              🥢 Trưa ăn ngoài văn phòng
+            </button>
+          </div>
+
+          {mode === 'lunch' ? (
+            <div className="lunch-advisor-panel">
+              <div className="lunch-advisor-header">
+                <div>
+                  <h3>Gợi ý ăn trưa nhanh cho dân văn phòng</h3>
+                  <p className="small muted">Chọn nhanh món dễ ăn, rõ calo & tầm giá để rủ đồng nghiệp.</p>
+                </div>
+                <button
+                  type="button"
+                  className="button secondary small-button"
+                  onClick={() => setLunchSeed(v => v + 1)}
+                >
+                  <Dices size={15} aria-hidden="true" />
+                  <span>Đổi 3 gợi ý khác</span>
+                </button>
+              </div>
+              <div className="lunch-cards-list">
+                {lunchSuggestions.map(item => (
+                  <article className="suggestion-card" key={item.id}>
+                    <div className="suggestion-thumb lunch-emoji-thumb" aria-hidden="true">
+                      <span>{item.emoji}</span>
+                    </div>
+                    <div className="suggestion-info">
+                      <div className="suggestion-header-row">
+                        <h3 className="suggestion-title">{item.name}</h3>
+                        <span className="suggestion-time-badge">~{item.kcal} kcal</span>
+                      </div>
+                      <p className="suggestion-summary">{item.tag} · {item.note}</p>
+                      <div className="suggestion-footer-row">
+                        <strong className="suggestion-price">~{money(item.price)}</strong>
+                        <button
+                          type="button"
+                          className="button primary small-button"
+                          onClick={() =>
+                            void shareItem(
+                              `Trưa nay ăn ${item.name} không cả nhà?`,
+                              `Tầm ${money(item.price)} · ~${item.kcal} kcal · ${item.tag}`,
+                              '/assistant?mode=lunch'
+                            )
+                          }
+                        >
+                          <Share2 size={14} aria-hidden="true" />
+                          <span>Rủ đồng nghiệp</span>
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
           <div className="chat-header">
             <div className="chat-header-info">
               <span className="chat-header-dot" aria-hidden="true" />
@@ -241,29 +337,47 @@ export function Assistant() {
                           </p>
 
                           <div className="suggestion-footer-row">
-                            <strong className="suggestion-price">{money(s.total)}</strong>
-                            <Link
-                              className="button primary small-button suggestion-btn"
-                              to={`/cook?ids=${s.recipes.map(r => r.id).join(',')}&servings=${s.servings}${
-                                s.selections.some(x => x.variant_id) ? '&lighter=1' : ''
-                              }`}
-                              aria-label="Chọn món này"
-                            >
-                              <span>Chọn món này</span>
-                              <ArrowRight size={13} aria-hidden="true" />
-                            </Link>
+                            <strong className="suggestion-price">~{money(s.total)}</strong>
+                            <div className="suggestion-actions-group">
+                              {s.recipes[0] && (
+                                <button
+                                  type="button"
+                                  className={`icon-chip-btn ${isSaved(s.recipes[0].id) ? 'saved' : ''}`}
+                                  aria-label={isSaved(s.recipes[0].id) ? `Bỏ lưu ${s.name}` : `Lưu ${s.name}`}
+                                  onClick={() => toggleSave(s.recipes[0].id)}
+                                >
+                                  <Heart size={14} fill={isSaved(s.recipes[0].id) ? 'currentColor' : 'none'} aria-hidden="true" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="icon-chip-btn"
+                                aria-label={`Chia sẻ gợi ý ${s.name}`}
+                                onClick={() =>
+                                  void shareItem(
+                                    `Gợi ý hôm nay: ${s.name}`,
+                                    `Cho ${s.servings} người · ~${s.minutes} phút · Ước tính ${money(s.total)}`,
+                                    `/cook?ids=${s.recipes.map(r => r.id).join(',')}&servings=${s.servings}`
+                                  )
+                                }
+                              >
+                                <Share2 size={14} aria-hidden="true" />
+                              </button>
+                              <Link
+                                className="button primary small-button suggestion-btn"
+                                to={`/cook?ids=${s.recipes.map(r => r.id).join(',')}&servings=${s.servings}${
+                                  s.selections.some(x => x.variant_id) ? '&lighter=1' : ''
+                                }`}
+                                aria-label="Chọn món này"
+                              >
+                                <span>Xem công thức</span>
+                                <ArrowRight size={13} aria-hidden="true" />
+                              </Link>
+                            </div>
                           </div>
                         </div>
                       </article>
                     ))}
-
-                    {m.result.products.length > 0 && (
-                      <div className="chat-products product-grid">
-                        {m.result.products.map(p => (
-                          <ProductCard product={p} key={p.id} />
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               )
@@ -341,8 +455,10 @@ export function Assistant() {
           </form>
 
           <p className="chat-footnote">
-            Giá tính theo danh mục hàng mẫu. Trợ lý gợi ý và không tự động thay đổi giỏ hàng của bạn.
+            Chi phí ước tính tham khảo theo khẩu phần. Dữ liệu từ trợ lý AI Bữa Nhà.
           </p>
+            </>
+          )}
         </section>
       </div>
 

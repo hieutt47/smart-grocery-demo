@@ -3,6 +3,7 @@ import {Link, useParams, useSearchParams} from 'react-router-dom';
 import {ArrowLeft, ArrowRight, Check, ShoppingBasket, Sparkles} from 'lucide-react';
 import {DemoNote, Empty, LoadState, PageTitle, ProductCard, ProductVisual, Quantity, RecipeCard} from '../components';
 import {useResource, useStore} from '../context';
+import {getRecipeNutrition} from '../nutrition';
 import {money} from '../api';
 import type {Product, Recipe} from '../types';
 
@@ -192,31 +193,58 @@ export function ProductDetail() {
 
 const RECIPE_CATEGORIES = [
   {id: 'all', label: 'Tất cả món'},
+  {id: 'nhanh', label: 'Nhanh gọn (≤ 20 phút)'},
+  {id: 'eat-clean', label: 'Eat clean · Ít dầu'},
   {id: 'man', label: 'Món mặn'},
   {id: 'canh', label: 'Món canh'},
-  {id: 'rau', label: 'Món rau & xào'},
-  {id: 'nhanh', label: 'Nhanh gọn (≤ 20 phút)'}
+  {id: 'rau', label: 'Món rau & xào'}
 ];
 
+function foldVietnamese(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+}
+
 export function Recipes() {
+  const [params, setParams] = useSearchParams();
   const resource = useResource<Recipe[]>('/recipes');
-  const [filter, setFilter] = useState('all');
+  const filterParam = params.get('filter') || 'all';
+  const queryParam = foldVietnamese((params.get('q') || '').trim());
 
   const allRecipes = resource.data || [];
   const filteredRecipes = allRecipes.filter(r => {
-    if (filter === 'all') return true;
-    if (filter === 'man') return r.tags?.some(t => ['món mặn', 'gà', 'bò', 'thịt', 'cá'].includes(t));
-    if (filter === 'canh') return r.tags?.includes('canh');
-    if (filter === 'rau') return r.tags?.includes('rau') || r.name.toLowerCase().includes('rau') || r.name.toLowerCase().includes('salad');
-    if (filter === 'nhanh') return r.minutes <= 20;
+    const matchesQuery =
+      !queryParam ||
+      foldVietnamese(r.name).includes(queryParam) ||
+      foldVietnamese(r.description).includes(queryParam) ||
+      r.tags?.some(t => foldVietnamese(t).includes(queryParam));
+    if (!matchesQuery) return false;
+    if (filterParam === 'all') return true;
+    if (filterParam === 'eat-clean') return !!getRecipeNutrition(r.id).eatClean;
+    if (filterParam === 'man') return r.tags?.some(t => ['món mặn', 'gà', 'bò', 'thịt', 'cá'].includes(t));
+    if (filterParam === 'canh') return r.tags?.includes('canh');
+    if (filterParam === 'rau') return r.tags?.includes('rau') || r.name.toLowerCase().includes('rau') || r.name.toLowerCase().includes('salad');
+    if (filterParam === 'nhanh') return r.minutes <= 20;
     return true;
   });
+
+  function setFilter(next: string) {
+    const nextParams = new URLSearchParams(params);
+    if (next === 'all') nextParams.delete('filter');
+    else nextParams.set('filter', next);
+    setParams(nextParams);
+  }
 
   return (
     <div className="recipes-page">
       <PageTitle
-        eyebrow="Góc bếp gia đình"
+        eyebrow="Góc bếp văn phòng"
         title="Hôm nay nấu món gì?"
+        description={queryParam ? `Kết quả tìm kiếm cho “${params.get('q')}”` : 'Chọn nhanh món phù hợp với thời gian và khẩu vị của bạn.'}
       />
 
       <div className="recipes-assistant-banner">
@@ -225,7 +253,7 @@ export function Recipes() {
           <span>Bạn cần gợi ý theo ngân sách hoặc số người?</span>
         </div>
         <Link className="text-link" to="/assistant">
-          <span>Gợi ý mâm cơm</span>
+          <span>Hỏi trợ lý AI</span>
           <ArrowRight size={14} aria-hidden="true" />
         </Link>
       </div>
@@ -235,13 +263,26 @@ export function Recipes() {
           <button
             key={c.id}
             type="button"
-            aria-pressed={filter === c.id}
-            className={`chip ${filter === c.id ? 'active' : ''}`}
+            aria-pressed={filterParam === c.id}
+            className={`chip ${filterParam === c.id ? 'active' : ''}`}
             onClick={() => setFilter(c.id)}
           >
             {c.label}
           </button>
         ))}
+        {queryParam && (
+          <button
+            type="button"
+            className="chip"
+            onClick={() => {
+              const nextParams = new URLSearchParams(params);
+              nextParams.delete('q');
+              setParams(nextParams);
+            }}
+          >
+            Xóa tìm kiếm “{params.get('q')}” ✕
+          </button>
+        )}
       </div>
 
       <LoadState {...resource} />
@@ -263,8 +304,10 @@ export function Recipes() {
             </div>
           ) : (
             <Empty
-              title="Chưa có công thức cho mục này"
-              text="Hãy thử chọn nhóm món khác hoặc xem gợi ý từ trợ lý bữa cơm."
+              title="Chưa có công thức phù hợp"
+              text="Hãy thử từ khóa khác hoặc nhờ trợ lý AI gợi ý món mới nhé."
+              to="/assistant"
+              label="Hỏi trợ lý AI"
             />
           )}
         </>

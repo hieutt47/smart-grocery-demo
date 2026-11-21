@@ -1,6 +1,7 @@
 import logging
 import os
 import secrets
+import sys
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -69,7 +70,21 @@ def migrate(engine):
     command.upgrade(config, "head")
 
 
+def _load_dotenv() -> None:
+    env_path = ROOT / ".env"
+    if not env_path.is_file():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
 def create_app(database_url=None, clock=None):
+    if database_url is None and "pytest" not in sys.modules:
+        _load_dotenv()
     engine, factory = create_database(database_url)
     now = clock or (lambda: int(time.time()))
 

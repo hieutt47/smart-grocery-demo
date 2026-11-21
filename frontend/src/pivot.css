@@ -1,0 +1,327 @@
+/* Pivot styles: Office-worker meal advisor, quick moods, random picker, save & share */
+.quick-moods-section {
+  margin: 24px 0 32px;
+}
+
+.quick-moods-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.mood-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 16px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  transition: transform 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.mood-card:hover {
+  transform: translateY(-2px);
+  border-color: #9ab186;
+  background: #f7faf2;
+}
+
+.mood-emoji {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #edf2e6;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.mood-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.mood-copy strong {
+  display: block;
+  font-size: 14px;
+  color: var(--green-dark);
+}
+
+.mood-copy small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.random-picker-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 28px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #f3f7ec 0%, #ffffff 100%);
+  border: 1px solid #d7e2ca;
+  margin: 28px 0 36px;
+}
+
+.random-picker-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.random-picker-copy h2 {
+  font-size: 22px;
+  margin: 8px 0;
+}
+
+.random-picker-result {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  min-width: 320px;
+  max-width: 460px;
+}
+
+.random-picker-thumb {
+  width: 68px;
+  height: 68px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #f1f3e9;
+  display: grid;
+  place-items: center;
+}
+
+.random-picker-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.random-picker-info strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.random-picker-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.recipe-save-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #6d7b68;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 12px rgba(25, 74, 51, 0.12);
+  transition: transform 0.15s, color 0.15s, background 0.15s;
+  z-index: 2;
+}
+
+.recipe-save-btn:hover {
+  transform: scale(1.06);
+  color: #c24136;
+}
+
+.recipe-save-btn.saved {
+  color: #c24136;
+  background: #fff5f4;
+}
+
+.suggestion-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.icon-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.icon-chip-btn:hover {
+  background: var(--sage);
+}
+
+.icon-chip-btn.saved {
+  color: #c24136;
+  border-color: #f0c9c4;
+  background: #fff6f5;
+}
+
+.cook-secondary-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+@media (max-width: 1020px) {
+  .quick-moods-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .random-picker-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .random-picker-result {
+    max-width: none;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .quick-moods-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .mood-card {
+    padding: 12px;
+    gap: 10px;
+  }
+  .mood-emoji {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+  .mood-copy strong {
+    font-size: 12px;
+  }
+  .mood-copy small {
+    font-size: 10px;
+  }
+  .random-picker-card {
+    padding: 18px;
+    gap: 16px;
+  }
+}
+
+.kcal-pill {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #edf2e6;
+  color: var(--green-dark);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.picker-toggles {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.segmented-control {
+  display: inline-flex;
+  background: #e9efe3;
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.segmented-control button {
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  color: #5c6d58;
+  min-height: 34px;
+}
+
+.segmented-control button.active {
+  background: #ffffff;
+  color: var(--green-dark);
+  box-shadow: 0 2px 6px rgba(25, 74, 51, 0.08);
+}
+
+.icon-chip-btn.active-group {
+  background: #edf4e3;
+  border-color: #93b573;
+  color: var(--green-dark);
+}
+
+.lunch-emoji-thumb {
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  background: #f3f6eb;
+}
+
+.chat-mode-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #f5f7ef;
+  border-bottom: 1px solid var(--line);
+  padding: 6px;
+  gap: 6px;
+}
+
+.chat-mode-tab {
+  min-height: 40px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #657561;
+  background: transparent;
+}
+
+.chat-mode-tab.active {
+  background: #ffffff;
+  color: var(--green-dark);
+  box-shadow: 0 2px 8px rgba(25, 74, 51, 0.08);
+}
+
+.lunch-advisor-panel {
+  padding: 20px;
+}
+
+.lunch-advisor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.lunch-advisor-header h3 {
+  font-size: 17px;
+  margin-bottom: 4px;
+}
+
+.lunch-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
