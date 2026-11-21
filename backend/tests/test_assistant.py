@@ -241,3 +241,36 @@ def test_gemini_provider_custom_recipe_and_advisory(system):
             assert result["health_advisory"]
             assert result["suggestions"][0]["id"] == cid
             assert result["suggestions"][0]["recipes"][0]["is_custom"] is True
+
+
+def test_gemini_provider_forwards_chat_history_without_persisting(system):
+    from unittest.mock import patch
+
+    from backend.app.gemini import GeminiProvider
+
+    app, _, _ = system
+    captured = {}
+
+    def fake_call(api_key, model, prompt, context, candidates_text="", db=None, timeout=7):
+        captured["history"] = context.get("history")
+        return {
+            "message": "Nhớ thông tin bệnh tim ở tin trước, mình gợi ý món hấp nhẹ nhé!",
+            "intent": "dish",
+            "selected_ids": ["ca-basa-hap-gung"],
+            "servings": 2,
+            "excluded": [],
+            "lighter": True,
+            "health_advisory": "Giữ chế độ ít muối như đã trao đổi.",
+        }
+
+    with app.state.factory.begin() as db:
+        provider = GeminiProvider(api_key="fake-key")
+        with patch("backend.app.gemini.call_gemini", side_effect=fake_call):
+            result = provider.recommend(
+                db,
+                "Thế tối nay nấu món gì nhanh 15 phút?",
+                {"history": [{"role": "user", "text": "Nhà tôi có người bị đau tim"}]},
+            )
+            assert captured["history"] == [{"role": "user", "text": "Nhà tôi có người bị đau tim"}]
+            assert "history" not in result["context"]
+            assert result["suggestions"][0]["id"] == "ca-basa-hap-gung"

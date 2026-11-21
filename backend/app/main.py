@@ -500,7 +500,20 @@ def create_app(database_url=None, clock=None):
                 db.add(conversation)
         if body.pantry:
             conversation.context = {**conversation.context, "pantry": body.pantry}
-        result = get_recommendation_provider().recommend(db, body.content, conversation.context)
+        recent_history = []
+        for msg in conversation.messages[-8:]:
+            if msg.get("role") == "user":
+                recent_history.append({"role": "user", "text": msg.get("content", "")})
+            elif msg.get("role") == "assistant" and isinstance(msg.get("result"), dict):
+                res_obj = msg["result"]
+                sug_names = [s.get("name", "") for s in res_obj.get("suggestions", [])]
+                summary = res_obj.get("message", "")
+                if sug_names:
+                    summary = f"{summary} [Đã gợi ý: {', '.join(sug_names)}]"
+                recent_history.append({"role": "assistant", "text": summary})
+        provider_ctx = {**conversation.context, "history": recent_history}
+        result = get_recommendation_provider().recommend(db, body.content, provider_ctx)
+        result["context"].pop("history", None)
         result["conversation_id"] = conversation.id
         conversation.context = result["context"]
         conversation.messages = (

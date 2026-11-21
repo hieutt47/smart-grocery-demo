@@ -464,10 +464,23 @@ def call_gemini(
     if not clean_key:
         return None
 
+    history_lines = []
+    for turn in context.get("history", [])[-8:]:
+        role_label = "Người dùng" if turn.get("role") == "user" else "Trợ lý"
+        history_lines.append(f"- {role_label}: {turn.get('text', '')}")
+    history_block = (
+        "Lịch sử hội thoại trước đó (PHẢI ghi nhớ các thông tin sức khỏe, sở thích, nguyên liệu người dùng đã nêu):\n"
+        + "\n".join(history_lines)
+        + "\n\n"
+        if history_lines
+        else ""
+    )
+    clean_ctx = {k: v for k, v in context.items() if k != "history"}
     user_text = (
         f"{candidates_text}\n\n"
-        f"Ngữ cảnh hội thoại trước đó: {json.dumps(context, ensure_ascii=False)}\n\n"
-        f"Tin nhắn người dùng: {prompt}"
+        f"{history_block}"
+        f"Ngữ cảnh trích xuất: {json.dumps(clean_ctx, ensure_ascii=False)}\n\n"
+        f"Tin nhắn người dùng hiện tại: {prompt}"
     )
 
     candidate_list = [ACTIVE_WORKING_MODEL]
@@ -598,7 +611,15 @@ class GeminiProvider:
 
     def recommend(self, db, content: str, context: dict) -> dict:
         text = normalize(content)
-        ctx = {"servings": 2, "budget": None, "minutes": None, "excluded": [], "shown": [], **context}
+        raw_history = context.get("history", [])
+        ctx = {
+            "servings": 2,
+            "budget": None,
+            "minutes": None,
+            "excluded": [],
+            "shown": [],
+            **{k: v for k, v in context.items() if k != "history"},
+        }
 
         # Medical & Allergy invariant check: keep deterministic refusal
         if "di ung" in text or ctx.get("allergy_uncertain"):
@@ -617,7 +638,10 @@ class GeminiProvider:
             }
 
         candidates_text = build_dynamic_candidates(db, content, ctx, limit=25)
-        llm_data = call_gemini(self.api_key, self.model, content, ctx, candidates_text=candidates_text, db=db)
+        call_ctx = {**ctx, "history": raw_history} if raw_history else ctx
+        llm_data = call_gemini(
+            self.api_key, self.model, content, call_ctx, candidates_text=candidates_text, db=db
+        )
         if not llm_data:
             res = self.fallback.recommend(db, content, context)
             if LAST_STATUS.get("error"):
