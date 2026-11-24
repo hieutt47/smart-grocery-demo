@@ -176,36 +176,32 @@ export function RecipeCard({recipe: r}: {recipe: Recipe}) {
     'Món ngon';
   const tag = nutrition.eatClean ? 'Eat clean' : TAG_LABELS[primaryTag] || primaryTag.charAt(0).toUpperCase() + primaryTag.slice(1);
   return (
-    <Link to={`/cook?ids=${r.id}`} className="recipe-card">
-      <div className="recipe-art">
-        <RecipeVisual recipe={r} className="recipe-photo-cover" decorative={true} />
-        <span className="recipe-tag-badge">{tag}</span>
-        <button
-          type="button"
-          className={`recipe-save-btn ${saved ? 'saved' : ''}`}
-          aria-label={saved ? `Bỏ lưu ${r.name}` : `Lưu món ${r.name}`}
-          aria-pressed={saved}
-          onClick={e => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleSave(r.id);
-          }}
-        >
-          <Heart size={16} fill={saved ? 'currentColor' : 'none'} aria-hidden="true" />
-        </button>
-      </div>
-      <div className="recipe-body">
-        <div className="recipe-meta">
-          <span><Clock3 size={13} aria-hidden="true" /> {r.minutes} phút</span>
-          <span><Users size={13} aria-hidden="true" /> {r.servings} người</span>
-          <span className="kcal-pill">~{nutrition.kcal} kcal</span>
+    <article className="recipe-card">
+      <Link to={`/cook?ids=${r.id}`} className="recipe-card-link" aria-label={`Xem công thức ${r.name}`}>
+        <div className="recipe-art">
+          <RecipeVisual recipe={r} className="recipe-photo-cover" decorative={true} />
+          <span className="recipe-tag-badge">{tag}</span>
         </div>
-        <h3 className="recipe-title">{r.name}</h3>
-        <span className="recipe-action-link">
-          Xem công thức <ArrowRight size={15} aria-hidden="true" />
-        </span>
-      </div>
-    </Link>
+        <div className="recipe-body">
+          <div className="recipe-meta">
+            <span><Clock3 size={13} aria-hidden="true" /> {r.minutes} phút</span>
+            <span><Users size={13} aria-hidden="true" /> {r.servings} người</span>
+            <span className="kcal-pill">~{nutrition.kcal} kcal</span>
+          </div>
+          <h3 className="recipe-title">{r.name}</h3>
+          <span className="recipe-action-link">Xem công thức <ArrowRight size={15} aria-hidden="true" /></span>
+        </div>
+      </Link>
+      <button
+        type="button"
+        className={`recipe-save-btn ${saved ? 'saved' : ''}`}
+        aria-label={saved ? `Bỏ lưu ${r.name}` : `Lưu món ${r.name}`}
+        aria-pressed={saved}
+        onClick={() => toggleSave(r.id)}
+      >
+        <Heart size={18} fill={saved ? 'currentColor' : 'none'} aria-hidden="true" />
+      </button>
+    </article>
   );
 }
 

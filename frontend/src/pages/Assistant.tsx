@@ -52,7 +52,14 @@ export function Assistant() {
   const [error, setError] = useState('');
   const [showPantry, setShowPantry] = useState(false);
   const [pantryIds, setPantryIds] = useState<string[]>(getPantryStaples());
-  const [mode, setMode] = useState<'cook' | 'lunch'>(() => (searchParams.get('mode') === 'lunch' ? 'lunch' : 'cook'));
+  const mode = searchParams.get('mode') === 'lunch' ? 'lunch' : 'cook';
+
+  function setMode(nextMode: 'cook' | 'lunch') {
+    const next = new URLSearchParams(searchParams);
+    if (nextMode === 'lunch') next.set('mode', 'lunch');
+    else next.delete('mode');
+    setSearchParams(next);
+  }
   const [lunchSeed, setLunchSeed] = useState(0);
   const [memory, setMemory] = useState<ActiveMemory | null>(null);
   const {ready, isSaved, toggleSave, shareItem} = useStore();
@@ -78,10 +85,6 @@ export function Assistant() {
   }, [messages]);
 
   useEffect(() => {
-    const modeParam = searchParams.get('mode');
-    if (modeParam === 'lunch') {
-      setMode('lunch');
-    }
     const qParam = searchParams.get('q')?.trim();
     if (!qParam || !ready || resource.loading || sending || sentQueryRef.current === qParam) return;
     sentQueryRef.current = qParam;

@@ -214,6 +214,12 @@ export function Recipes() {
   const resource = useResource<Recipe[]>('/recipes');
   const filterParam = params.get('filter') || 'all';
   const queryParam = foldVietnamese((params.get('q') || '').trim());
+  const resultKey = `${filterParam}|${queryParam}`;
+  const [pageState, setPageState] = useState({key: resultKey, count: PAGE_SIZE});
+  if (pageState.key !== resultKey) {
+    setPageState({key: resultKey, count: PAGE_SIZE});
+  }
+  const visibleCount = pageState.key === resultKey ? pageState.count : PAGE_SIZE;
 
   const allRecipes = resource.data || [];
   const filteredRecipes = allRecipes.filter(r => {
@@ -291,17 +297,31 @@ export function Recipes() {
         <>
           <div className="list-meta">
             <span className="list-count" aria-live="polite">
-              <strong>{filteredRecipes.length}</strong> / {allRecipes.length} công thức
+              Đang xem <strong>{Math.min(visibleCount, filteredRecipes.length)}</strong> / {filteredRecipes.length} công thức
             </span>
             <span className="list-subtext">Định lượng tự tính theo khẩu phần</span>
           </div>
 
           {filteredRecipes.length > 0 ? (
-            <div className="recipe-grid">
-              {filteredRecipes.map(r => (
-                <RecipeCard recipe={r} key={r.id} />
-              ))}
-            </div>
+            <>
+              <div className="recipe-grid" id="recipe-results">
+                {filteredRecipes.slice(0, visibleCount).map(r => (
+                  <RecipeCard recipe={r} key={r.id} />
+                ))}
+              </div>
+              {visibleCount < filteredRecipes.length && (
+                <div className="load-more-row">
+                  <button
+                    type="button"
+                    className="load-more-button"
+                    aria-controls="recipe-results"
+                    onClick={() => setPageState({key: resultKey, count: visibleCount + PAGE_SIZE})}
+                  >
+                    Xem thêm {Math.min(PAGE_SIZE, filteredRecipes.length - visibleCount)} công thức
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
             <Empty
               title="Chưa có công thức phù hợp"

@@ -1,4 +1,131 @@
 /* Pivot styles: Office-worker meal advisor, quick moods, random picker, save & share */
+.home-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 32px;
+  padding: 24px 0;
+  font-size: 16px;
+  color: var(--ink);
+}
+.home-intro h1 {
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 1.2;
+  margin: 0 0 12px;
+  text-wrap: balance;
+}
+.home-intro-copy > p {
+  color: var(--ink-soft);
+  max-width: 42ch;
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+.home-intro-image {
+  width: 100%;
+  height: 230px;
+  object-fit: cover;
+  border-radius: 20px;
+}
+.home-intro-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+}
+.home-clarity .text-link {
+  color: var(--green);
+  min-height: 44px;
+}
+.home-featured {
+  margin-top: 24px;
+}
+.home-clarity .section-heading {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.home-clarity .section-heading h2 {
+  margin: 0;
+}
+.home-clarity .mood-card {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 12px 0;
+  min-height: 64px;
+}
+.home-clarity .mood-card:hover {
+  transform: none;
+  color: var(--green);
+  background: var(--bg-warm);
+}
+.mood-icon {
+  color: var(--green);
+  flex-shrink: 0;
+}
+.home-clarity .mood-copy small {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.home-picker-disclosure {
+  margin: 32px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.home-picker-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  cursor: pointer;
+  color: var(--green);
+  font-weight: 600;
+  padding: 10px 0;
+  list-style: none;
+}
+.home-picker-disclosure > summary::-webkit-details-marker { display: none; }
+.home-picker-disclosure > summary::after { content: '+'; margin-left: auto; font-size: 22px; }
+.home-picker-disclosure[open] > summary::after { content: '−'; }
+.home-picker-disclosure .random-picker-card {
+  margin: 0;
+  padding: 16px 0 24px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.home-picker-disclosure .random-picker-result {
+  border: none;
+  box-shadow: none;
+  padding: 16px;
+  background: var(--bg-warm);
+}
+.home-picker-disclosure .segmented-control button,
+.home-picker-disclosure .icon-chip-btn {
+  min-height: 44px;
+}
+.picker-random-button { margin-top: 16px; }
+.home-reference-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.home-reference-note svg { flex-shrink: 0; margin-top: 3px; }
+@media (max-width: 680px) {
+  .home-intro { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 8px 0; }
+  .home-intro-image { display: none; }
+  .home-intro h1 { font-size: 28px; }
+  .home-intro-copy > p { font-size: 14px; margin-bottom: 16px; }
+  .home-intro-actions { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .home-intro-actions .button { min-height: 48px; }
+  .home-clarity .section-heading h2 { font-size: 20px; }
+  .home-featured { margin-top: 24px; }
+  .home-clarity .mood-copy strong { font-size: 14px; }
+  .home-clarity .quick-moods-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .home-picker-disclosure .random-picker-result { flex-wrap: wrap; }
+}
+
 .quick-moods-section {
   margin: 24px 0 32px;
 }
@@ -119,12 +246,22 @@
   flex-wrap: wrap;
 }
 
+.recipe-card { position: relative; }
+.recipe-card-link { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.recipe-meta { flex-wrap: wrap; gap: 8px 14px; }
+.recipe-meta span { white-space: nowrap; }
+.recipe-meta svg { flex-shrink: 0; }
+@media (min-width: 681px) and (max-width: 900px) {
+  .commerce-links { display: none; }
+}
 .recipe-save-btn {
   position: absolute;
   top: 10px;
   right: 10px;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.92);
   color: #6d7b68;

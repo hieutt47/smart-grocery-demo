@@ -8,12 +8,19 @@ test('A: home quick moods, random picker, recipe search and saved collection', a
   await expect(page.getByRole('link', {name: 'Giỏ hàng'})).toHaveCount(0);
   await expect(page.getByRole('link', {name: 'Đơn hàng'})).toHaveCount(0);
 
-  // Random picker works
-  await page.getByRole('button', {name: 'Chọn ngẫu nhiên'}).click();
+  // Random picker is available on demand without crowding the first visit.
+  await expect(page.locator('.home-picker-disclosure')).not.toHaveAttribute('open', '');
+  await page.locator('.home-picker-disclosure > summary').click();
+  await page.getByRole('button', {name: 'Chọn ngẫu nhiên', exact: true}).click();
   await expect(page.locator('.random-picker-result')).toBeVisible();
 
-  // Save a recipe from Home and verify it appears in /saved
-  await page.locator('.recipe-save-btn').first().click();
+  // Saving by keyboard is independent from opening the recipe.
+  const save = page.locator('.recipe-save-btn').first();
+  await expect(page.locator('.recipe-card-link button')).toHaveCount(0);
+  await save.focus();
+  await page.keyboard.press('Space');
+  await expect(page).toHaveURL(/\/$/);
+  await expect(save).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('status')).toContainText('Đã lưu');
   await page.goto('/saved');
   await expect(page.locator('.recipe-card')).toHaveCount(1);
@@ -24,6 +31,113 @@ test('A: home quick moods, random picker, recipe search and saved collection', a
   await page.getByRole('button', {name: 'Tìm công thức', exact: true}).click();
   await expect(page).toHaveURL(/\/recipes\?q=ga/);
   await expect(page.locator('.recipe-card')).toHaveCount(1);
+});
+
+test('home starts with recipes and preserves optional meal tools', async ({page}) => {
+  await page.goto('/');
+  await expect(page.locator('.home-intro .button.primary')).toHaveCount(1);
+  await page.locator('.home-intro').getByRole('link', {name: 'Xem công thức', exact: true}).click();
+  await expect(page).toHaveURL(/\/recipes$/);
+  await expect(page.locator('.recipe-card').first()).toBeVisible();
+  await page.goto('/');
+  await page.evaluate(() => {
+    const shares: ShareData[] = [];
+    Object.defineProperty(window, '__testShares', {value: shares, configurable: true});
+    Object.defineProperty(navigator, 'share', {configurable: true, value: async (data: ShareData) => { shares.push(data); }});
+  });
+  const disclosure = page.locator('.home-picker-disclosure');
+  await expect(disclosure).not.toHaveAttribute('open', '');
+  await disclosure.locator('summary').focus();
+  await page.keyboard.press('Enter');
+  await expect(disclosure).toHaveAttribute('open', '');
+  await expect(disclosure.getByRole('link', {name: 'Xem gợi ý ăn trưa'})).toHaveAttribute('href', '/assistant?mode=lunch');
+  const lunchName = await disclosure.locator('.random-picker-info > strong').innerText();
+  await disclosure.getByRole('button', {name: 'Rủ đồng nghiệp', exact: true}).click();
+  const lunchShares = await page.evaluate(() => Reflect.get(window, '__testShares') as ShareData[]);
+  expect(lunchShares[0].title).toContain(lunchName);
+  expect(lunchShares[0].url).toContain('/assistant?mode=lunch');
+  await expect(page).toHaveURL(/\/$/);
+  await disclosure.getByRole('button', {name: 'Tự nấu', exact: true}).click();
+  await expect(disclosure.getByRole('button', {name: 'Tự nấu', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  await disclosure.getByRole('button', {name: 'Chọn cho nhóm', exact: true}).click();
+  await expect(disclosure.getByRole('button', {name: 'Đang chọn cho nhóm'})).toHaveAttribute('aria-pressed', 'true');
+  await disclosure.getByRole('button', {name: 'Chọn ngẫu nhiên cho nhóm', exact: true}).click();
+  const recipeName = await disclosure.locator('.random-picker-info > strong').innerText();
+  await disclosure.getByRole('button', {name: `Chia sẻ món ${recipeName}`, exact: true}).click();
+  const shares = await page.evaluate(() => Reflect.get(window, '__testShares') as ShareData[]);
+  expect(shares).toHaveLength(2);
+  expect(shares[1].title).toContain(recipeName);
+  expect(shares[1].url).toContain('/cook?ids=');
+  await expect(page).toHaveURL(/\/$/);
+  await disclosure.getByRole('link', {name: 'Xem cách nấu'}).click();
+  await expect(page).toHaveURL(/\/cook\?ids=/);
+  await expect(page.locator('.ingredient-list')).toBeVisible();
+});
+
+test('tablet uses one primary navigation and keeps recipe metadata together', async ({page}) => {
+  for (const width of [680, 681, 768, 900, 901]) {
+    await page.setViewportSize({width, height: 1024});
+    await page.goto('/');
+    await expect(page.locator('.recipe-card').first()).toBeVisible();
+    if (width <= 900) {
+      await expect(page.locator('.commerce-links')).toBeHidden();
+      await expect(page.locator('.mobile-nav')).toBeVisible();
+    } else {
+      await expect(page.locator('.commerce-links')).toBeVisible();
+      await expect(page.locator('.mobile-nav')).toBeHidden();
+    }
+    const layout = await page.evaluate(() => ({
+      overflow: document.documentElement.scrollWidth - innerWidth,
+      metadataWrap: [...document.querySelectorAll('.recipe-meta span')].map(node => getComputedStyle(node).whiteSpace)
+    }));
+    expect(layout.overflow).toBe(0);
+    expect(layout.metadataWrap.every(value => value === 'nowrap')).toBe(true);
+  }
+});
+
+test('recipe pagination resets for filters, search and browser history', async ({page}) => {
+  await page.goto('/recipes');
+  await expect(page.locator('.recipe-card')).toHaveCount(12);
+  await page.getByRole('button', {name: 'Xem thêm 12 công thức', exact: true}).click();
+  await expect(page.locator('.recipe-card')).toHaveCount(24);
+  await page.getByRole('button', {name: 'Nhanh gọn (≤ 20 phút)', exact: true}).click();
+  await expect(page.locator('.recipe-card')).toHaveCount(12);
+  await page.getByRole('button', {name: 'Xem thêm 12 công thức', exact: true}).click();
+  await expect(page.locator('.recipe-card')).toHaveCount(24);
+  const search = page.getByRole('textbox', {name: 'Tìm món ăn hoặc công thức'});
+  await search.fill('ga rang');
+  await page.getByRole('button', {name: 'Tìm công thức', exact: true}).click();
+  await expect(page.locator('.recipe-card')).toHaveCount(1);
+  await page.goBack();
+  await expect(page).toHaveURL(/filter=nhanh/);
+  await expect(page.locator('.recipe-card')).toHaveCount(12);
+  await page.getByRole('button', {name: 'Tất cả món', exact: true}).click();
+  await expect(page.locator('.recipe-card')).toHaveCount(12);
+  for (const count of [24, 36, 48, 60]) {
+    await page.getByRole('button', {name: 'Xem thêm 12 công thức', exact: true}).click();
+    await expect(page.locator('.recipe-card')).toHaveCount(count);
+  }
+  await expect(page.getByRole('button', {name: /Xem thêm .* công thức/})).toHaveCount(0);
+});
+
+test('assistant mode follows URL and browser history without sending messages', async ({page}) => {
+  let messagesSent = 0;
+  page.on('request', request => {
+    if (request.method() === 'POST' && request.url().endsWith('/assistant/messages')) messagesSent++;
+  });
+  await page.goto('/assistant?mode=lunch');
+  const cook = page.getByRole('tab', {name: '🍳 Tối tự nấu (AI)', exact: true});
+  const lunch = page.getByRole('tab', {name: '🥢 Trưa ăn ngoài văn phòng', exact: true});
+  await expect(lunch).toHaveAttribute('aria-selected', 'true');
+  await cook.click();
+  await expect(page).toHaveURL(/\/assistant$/);
+  await expect(cook).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('textbox', {name: 'Nhập nhu cầu bữa ăn của bạn'})).toBeVisible();
+  await page.goBack();
+  await expect(lunch).toHaveAttribute('aria-selected', 'true');
+  await page.goForward();
+  await expect(cook).toHaveAttribute('aria-selected', 'true');
+  expect(messagesSent).toBe(0);
 });
 
 test('B: AI assistant office prompts, cook checklist and save/share', async ({page}) => {

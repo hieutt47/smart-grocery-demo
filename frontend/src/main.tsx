@@ -15,7 +15,7 @@ import './pivot.css';
 
 const NAVIGATION = [
   {to: '/', label: 'Trang chủ', icon: House},
-  {to: '/assistant', label: 'Gợi ý AI', icon: Sparkles},
+  {to: '/assistant', label: 'Gợi ý món', icon: Sparkles},
   {to: '/recipes', label: 'Góc bếp', icon: ChefHat},
   {to: '/saved', label: 'Đã lưu', icon: Heart}
 ];
@@ -52,7 +52,7 @@ function RecipeSearch() {
         onChange={event => setSearch(event.target.value)}
       />
       <button type="submit" aria-label="Tìm công thức">
-        <Search size={19} />
+        <Search size={19} aria-hidden="true" />
       </button>
     </form>
   );
@@ -76,10 +76,10 @@ function App() {
       <div className="demo-banner-strip" role="banner">
         <div className="demo-banner-content">
           <span className="demo-indicator-dot" />
-          <span>Trợ lý gợi ý ăn uống thông minh · Nhanh gọn cho dân văn phòng</span>
+          <span>Chọn món · Xem cách nấu · Lên danh sách nguyên liệu</span>
           <Link to="/about" className="demo-banner-link">
             <span>Về Bữa Nhà</span>
-            <Info size={13} className="inline-icon" />
+            <Info size={13} className="inline-icon" aria-hidden="true" />
           </Link>
         </div>
       </div>
@@ -96,11 +96,11 @@ function App() {
         </div>
         <nav className="commerce-links" aria-label="Điều hướng chính">
           <NavLink to="/" end>Trang chủ</NavLink>
-          <NavLink to="/assistant"><Sparkles size={15} /> Gợi ý AI</NavLink>
+          <NavLink to="/assistant"><Sparkles size={15} aria-hidden="true" /> Gợi ý món</NavLink>
           <NavLink to="/recipes">Góc bếp</NavLink>
           <NavLink to="/saved">Món đã lưu</NavLink>
           <NavLink to="/about">Về Bữa Nhà</NavLink>
-          <span aria-hidden="true">Nghĩ món 5 giây. Nhẹ nhàng mỗi bữa.</span>
+          <span aria-hidden="true">Từ chọn món đến chuẩn bị bữa ăn.</span>
         </nav>
       </header>
 
@@ -191,7 +191,7 @@ function App() {
         {NAVIGATION.map(({to, label, icon: Icon}) => (
           <NavLink to={to} end={to === '/'} key={to}>
             <span>
-              <Icon size={21} />
+              <Icon size={21} aria-hidden="true" />
               {to === '/saved' && store.savedIds.length > 0 && <b>{store.savedIds.length}</b>}
             </span>
             <small>{label}</small>

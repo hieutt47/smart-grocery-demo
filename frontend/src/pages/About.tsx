@@ -31,7 +31,7 @@ export function About() {
       <PageTitle
         eyebrow="Về sản phẩm"
         title="Bữa Nhà — Trợ lý gợi ý ăn uống thông minh"
-        description="Giải pháp giúp dân văn phòng trẻ giải quyết câu hỏi “Hôm nay ăn gì?” chỉ trong 5 giây."
+        description="Chọn bữa ăn phù hợp với thời gian, ngân sách và khẩu vị của bạn; xem công thức hoặc tham khảo gợi ý ăn trưa ngoài."
       />
 
       <section className="form-section">
