@@ -1,12 +1,12 @@
 import {useEffect, useRef, useState} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
-import {ArrowRight, Bot, Brain, ChefHat, Clock3, Dices, Heart, HeartPulse, RotateCcw, Send, Share2, Sparkles, X} from 'lucide-react';
+import {ArrowRight, Bot, Brain, ChefHat, Clock3, Dices, Heart, HeartPulse, RotateCcw, Send, Share2, Sparkles, UtensilsCrossed, X} from 'lucide-react';
 import {api, money, trackEvent} from '../api';
 import {useResource, useStore} from '../context';
 import {LoadState, PageTitle, PantryModal} from '../components';
 import {OFFICE_LUNCH_OPTIONS} from '../nutrition';
 import {getPantryStaples, subscribePantry} from '../pantry';
-import {RecipeVisual} from '../recipe-art';
+import {RecipePhotoCredit, RecipeVisual} from '../recipe-art';
 import type {ActiveMemory, AssistantResult, ChatMessage, Conversation, Recipe} from '../types';
 
 const ALLERGEN_LABELS: Record<string, string> = {
@@ -80,7 +80,7 @@ export function Assistant() {
 
   useEffect(() => {
     if (messages.length) {
-      bottom.current?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+      bottom.current?.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest'});
     }
   }, [messages]);
 
@@ -242,24 +242,22 @@ export function Assistant() {
 
         {/* Khung trò chuyện */}
         <section className="chat-panel" aria-label="Khung trò chuyện trợ lý">
-          <div className="chat-mode-bar" role="tablist" aria-label="Chế độ tư vấn">
+          <div className="chat-mode-bar" role="group" aria-label="Chế độ tư vấn">
             <button
               type="button"
-              role="tab"
-              aria-selected={mode === 'cook'}
+              aria-pressed={mode === 'cook'}
               className={`chat-mode-tab ${mode === 'cook' ? 'active' : ''}`}
               onClick={() => setMode('cook')}
             >
-              🍳 Tối tự nấu (AI)
+              <ChefHat size={17} aria-hidden="true" /> Tự nấu
             </button>
             <button
               type="button"
-              role="tab"
-              aria-selected={mode === 'lunch'}
+              aria-pressed={mode === 'lunch'}
               className={`chat-mode-tab ${mode === 'lunch' ? 'active' : ''}`}
               onClick={() => setMode('lunch')}
             >
-              🥢 Trưa ăn ngoài văn phòng
+              <UtensilsCrossed size={17} aria-hidden="true" /> Ăn trưa ngoài
             </button>
           </div>
 
@@ -281,9 +279,9 @@ export function Assistant() {
               </div>
               <div className="lunch-cards-list">
                 {lunchSuggestions.map(item => (
-                  <article className="suggestion-card" key={item.id}>
-                    <div className="suggestion-thumb lunch-emoji-thumb" aria-hidden="true">
-                      <span>{item.emoji}</span>
+                  <article className="suggestion-card lunch-suggestion" key={item.id}>
+                    <div className="suggestion-thumb recipe-photo-fallback" aria-hidden="true">
+                      <span className="recipe-photo-missing-text">Chưa có ảnh món ăn</span>
                     </div>
                     <div className="suggestion-info">
                       <div className="suggestion-header-row">
@@ -423,6 +421,7 @@ export function Assistant() {
                         </div>
 
                         <div className="suggestion-info">
+                          {s.recipes[0] && <RecipePhotoCredit recipeId={s.recipes[0].id} />}
                           <div className="suggestion-header-row">
                             <h3 className="suggestion-title">{s.name}</h3>
                             <span className="suggestion-time-badge">
@@ -483,9 +482,9 @@ export function Assistant() {
                     ))}
 
                     {(m.result.lunch_suggestions || []).map(item => (
-                      <article className="suggestion-card" key={item.id}>
-                        <div className="suggestion-thumb lunch-emoji-thumb" aria-hidden="true">
-                          <span>{item.emoji}</span>
+                      <article className="suggestion-card lunch-suggestion" key={item.id}>
+                        <div className="suggestion-thumb recipe-photo-fallback" aria-hidden="true">
+                          <span className="recipe-photo-missing-text">Chưa có ảnh món ăn</span>
                         </div>
                         <div className="suggestion-info">
                           <div className="suggestion-header-row">

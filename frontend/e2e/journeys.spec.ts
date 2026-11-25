@@ -126,18 +126,47 @@ test('assistant mode follows URL and browser history without sending messages', 
     if (request.method() === 'POST' && request.url().endsWith('/assistant/messages')) messagesSent++;
   });
   await page.goto('/assistant?mode=lunch');
-  const cook = page.getByRole('tab', {name: '🍳 Tối tự nấu (AI)', exact: true});
-  const lunch = page.getByRole('tab', {name: '🥢 Trưa ăn ngoài văn phòng', exact: true});
-  await expect(lunch).toHaveAttribute('aria-selected', 'true');
+  const cook = page.getByRole('button', {name: 'Tự nấu', exact: true});
+  const lunch = page.getByRole('button', {name: 'Ăn trưa ngoài', exact: true});
+  await expect(lunch).toHaveAttribute('aria-pressed', 'true');
   await cook.click();
   await expect(page).toHaveURL(/\/assistant$/);
-  await expect(cook).toHaveAttribute('aria-selected', 'true');
+  await expect(cook).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('textbox', {name: 'Nhập nhu cầu bữa ăn của bạn'})).toBeVisible();
   await page.goBack();
-  await expect(lunch).toHaveAttribute('aria-selected', 'true');
+  await expect(lunch).toHaveAttribute('aria-pressed', 'true');
   await page.goForward();
-  await expect(cook).toHaveAttribute('aria-selected', 'true');
+  await expect(cook).toHaveAttribute('aria-pressed', 'true');
   expect(messagesSent).toBe(0);
+});
+
+test('recipe photography uses exact IDs and a neutral fallback on missing or failed images', async ({page}) => {
+  await page.goto('/');
+  const photo = page.locator('[data-recipe-id="rau-muong-xao"]');
+  await expect(photo).toHaveAttribute('data-photo-status', 'available');
+  await expect(photo.locator('img')).toHaveAttribute('srcset', /480w, .*960w/);
+  await expect.poll(() => photo.locator('img').evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  const pork = page.locator('[data-recipe-id="thit-kho-trung"] img');
+  await expect(pork).toHaveAttribute('srcset', /480w, .*678w/);
+  await expect.poll(() => pork.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  await expect(page.locator('.home-featured .recipe-card').filter({has: pork}).getByRole('link', {name: 'HungryHuy', exact: true})).toHaveAttribute('href', /hungryhuy\.com\/how-to-make-thit/);
+  const tofu = page.locator('[data-recipe-id="dau-hu-nhoi-thit-sot-ca"] img');
+  await expect(tofu).toHaveAttribute('srcset', /480w, .*533w/);
+  await expect.poll(() => tofu.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  await expect(page.locator('.recipe-card-link .recipe-photo-credit')).toHaveCount(0);
+  await expect(page.locator('.home-featured svg text')).toHaveCount(0);
+  await page.getByRole('link', {name: 'Xem công thức Rau muống xào tỏi', exact: true}).click();
+  await expect(page.locator('.cook-single-art img')).toHaveAttribute('loading', 'eager');
+  await page.goto('/recipes?q=ga%20rang');
+  await expect(page.locator('.recipe-card')).toHaveCount(1);
+  await expect(page.locator('[data-recipe-id="ga-rang-gung"]')).toHaveAttribute('data-photo-status', 'missing');
+  await expect(page.locator('.recipe-card img')).toHaveCount(0);
+  await page.goto('/about');
+  await expect(page.getByRole('link', {name: 'Rau muống xào tỏi — Andy Wright'})).toBeVisible();
+  await page.route('**/assets/rau-muong-xao-*.webp', route => route.abort());
+  await page.goto('/cook?ids=rau-muong-xao');
+  await expect(page.locator('.cook-single-art [data-photo-status="missing"]')).toBeVisible();
+  await expect(page.locator('.cook-single-art img')).toHaveCount(0);
 });
 
 test('B: AI assistant office prompts, cook checklist and save/share', async ({page}) => {

@@ -5,10 +5,8 @@ import {money, trackEvent} from '../api';
 import {LoadState, RecipeCard} from '../components';
 import {useResource, useStore} from '../context';
 import {getRecipeNutrition, OFFICE_LUNCH_OPTIONS, type OfficeLunchOption} from '../nutrition';
-import {RecipeVisual} from '../recipe-art';
+import {RecipePhotoCredit, RecipeVisual} from '../recipe-art';
 import type {Recipe} from '../types';
-
-const mealImage = new URL('../assets/meal.jpg', import.meta.url).href;
 
 const QUICK_MOODS = [
   {icon: UtensilsCrossed, title: 'Ăn trưa ngoài', sub: 'Ý tưởng món và tầm giá', to: '/assistant?mode=lunch'},
@@ -30,7 +28,7 @@ export function Home() {
   const [randomRecipe, setRandomRecipe] = useState<Recipe | null>(null);
   const [randomLunch, setRandomLunch] = useState<OfficeLunchOption>(OFFICE_LUNCH_OPTIONS[0]);
 
-  const featured = ['ga-rang-gung', 'bo-xao-ca-chua', 'trung-chien-hanh'];
+  const featured = ['rau-muong-xao', 'thit-kho-trung', 'dau-hu-nhoi-thit-sot-ca'];
   const allRecipes = recipes.data || [];
   const displayedRecipe = randomRecipe || allRecipes[0] || null;
 
@@ -67,7 +65,6 @@ export function Home() {
             </Link>
           </div>
         </div>
-        <img className="home-intro-image" src={mealImage} width="900" height="600" alt="Một bữa ăn với rau củ và món chính" fetchPriority="high" />
       </section>
 
       <section className="section home-featured" aria-labelledby="recipes-title">
@@ -141,6 +138,7 @@ export function Home() {
               <div className="random-picker-thumb"><RecipeVisual recipe={displayedRecipe} className="recipe-photo-cover" decorative={true} /></div>
               <div className="random-picker-info">
                 <strong>{displayedRecipe.name}</strong>
+                <RecipePhotoCredit recipeId={displayedRecipe.id} />
                 <p className="small muted">{displayedRecipe.minutes} phút · ~{getRecipeNutrition(displayedRecipe.id).kcal} kcal tham khảo</p>
                 <div className="random-picker-actions">
                   <Link className="button secondary small-button" to={`/cook?ids=${displayedRecipe.id}`}><ChefHat size={16} aria-hidden="true" /><span>Xem cách nấu</span></Link>

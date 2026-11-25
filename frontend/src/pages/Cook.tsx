@@ -6,7 +6,7 @@ import {useStore} from '../context';
 import {LoadState, PantryModal, Quantity} from '../components';
 import {getRecipeNutrition} from '../nutrition';
 import {getPantryStaples, isStaple, subscribePantry} from '../pantry';
-import {RecipeVisual} from '../recipe-art';
+import {RecipePhotoCredit, RecipeVisual} from '../recipe-art';
 import type {Quote, Recipe, Selection} from '../types';
 
 function loadCustomRecipe(id: string, stateRecipes?: Recipe[]): Recipe | null {
@@ -187,7 +187,8 @@ export function Cook() {
           {isSingle ? (
             <div className="cook-single-hero">
               <div className="cook-single-art">
-                <RecipeVisual recipe={recipes[0]} />
+                <RecipeVisual recipe={recipes[0]} eager />
+                <RecipePhotoCredit recipeId={recipes[0].id} />
               </div>
               <div className="cook-single-info">
                 <span className="eyebrow">
@@ -246,6 +247,7 @@ export function Cook() {
                       </div>
                       <div className="cook-cover-meta">
                         <h2>{r.name}</h2>
+                        <RecipePhotoCredit recipeId={r.id} />
                         <div className="cook-cover-tags">
                           <span className="cook-time-tag">
                             <Clock3 size={14} aria-hidden="true" />

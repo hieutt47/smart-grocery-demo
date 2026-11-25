@@ -2,6 +2,7 @@ import {useState} from 'react';
 import {Link} from 'react-router-dom';
 import {ArrowLeft, Check, RotateCcw, ShieldCheck, Sparkles, UtensilsCrossed} from 'lucide-react';
 import {api} from '../api';
+import {RECIPE_PHOTOS} from '../recipe-photos';
 import {useStore} from '../context';
 import {PageTitle} from '../components';
 
@@ -95,6 +96,18 @@ export function About() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="recipe-photo-credits" aria-labelledby="photo-credits-title">
+        <h2 id="photo-credits-title">Nguồn ảnh món ăn</h2>
+        <p>Ảnh chụp được đối chiếu với món trong công thức. Món chưa có ảnh phù hợp sẽ không dùng ảnh của món khác.</p>
+        {Object.entries(RECIPE_PHOTOS).map(([id, photo]) => (
+          <p key={id}>
+            <a href={photo.attributionUrl || photo.source}>{photo.name} — {photo.author}</a>
+            {' · '}<a href={photo.licenseUrl}>{photo.license}</a>
+            {' · '}Đã thu nhỏ và chuyển WebP, không thay đổi nội dung món ăn.
+          </p>
+        ))}
       </section>
 
       <section className="form-section">

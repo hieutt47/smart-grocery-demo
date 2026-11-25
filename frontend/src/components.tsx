@@ -31,7 +31,7 @@ import {money} from './api';
 import {useStore} from './context';
 import {getRecipeNutrition} from './nutrition';
 import {getPantryStaples, savePantryStaples, STAPLE_DEFINITIONS} from './pantry';
-import {RecipeVisual} from './recipe-art';
+import {RecipePhotoCredit, RecipeVisual} from './recipe-art';
 import {
   ChiliIcon,
   CornIcon,
@@ -192,6 +192,7 @@ export function RecipeCard({recipe: r}: {recipe: Recipe}) {
           <span className="recipe-action-link">Xem công thức <ArrowRight size={15} aria-hidden="true" /></span>
         </div>
       </Link>
+      <RecipePhotoCredit recipeId={r.id} />
       <button
         type="button"
         className={`recipe-save-btn ${saved ? 'saved' : ''}`}
