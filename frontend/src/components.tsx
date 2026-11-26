@@ -31,6 +31,7 @@ import {money} from './api';
 import {useStore} from './context';
 import {getRecipeNutrition} from './nutrition';
 import {getPantryStaples, savePantryStaples, STAPLE_DEFINITIONS} from './pantry';
+import {recordTasteSignal} from './taste';
 import {RecipePhotoCredit, RecipeVisual} from './recipe-art';
 import {
   ChiliIcon,
@@ -165,7 +166,7 @@ export function ProductCard({product: p, eager = false}: {product: Product; eage
   </article>;
 }
 
-export function RecipeCard({recipe: r}: {recipe: Recipe}) {
+export function RecipeCard({recipe: r, matchReason}: {recipe: Recipe; matchReason?: string}) {
   const {isSaved, toggleSave} = useStore();
   const saved = isSaved(r.id);
   const nutrition = getRecipeNutrition(r.id);
@@ -183,6 +184,7 @@ export function RecipeCard({recipe: r}: {recipe: Recipe}) {
           <span className="recipe-tag-badge">{tag}</span>
         </div>
         <div className="recipe-body">
+          {matchReason && <span className="recipe-match-pill">✨ {matchReason}</span>}
           <div className="recipe-meta">
             <span><Clock3 size={13} aria-hidden="true" /> {r.minutes} phút</span>
             <span><Users size={13} aria-hidden="true" /> {r.servings} người</span>
@@ -198,7 +200,12 @@ export function RecipeCard({recipe: r}: {recipe: Recipe}) {
         className={`recipe-save-btn ${saved ? 'saved' : ''}`}
         aria-label={saved ? `Bỏ lưu ${r.name}` : `Lưu món ${r.name}`}
         aria-pressed={saved}
-        onClick={() => toggleSave(r.id)}
+        onClick={() => {
+          if (!saved) {
+            recordTasteSignal(r.tags || [], 'save', r.id);
+          }
+          toggleSave(r.id);
+        }}
       >
         <Heart size={18} fill={saved ? 'currentColor' : 'none'} aria-hidden="true" />
       </button>

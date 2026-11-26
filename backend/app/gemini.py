@@ -19,12 +19,12 @@ from .seed import MEALS
 logger = logging.getLogger("grocery.gemini")
 
 FAST_MODELS = [
-    ("gemini-flash-lite-latest", "v1beta"),
     ("gemini-flash-latest", "v1beta"),
+    ("gemini-flash-lite-latest", "v1beta"),
     ("gemini-3-flash-preview", "v1beta"),
 ]
 
-ACTIVE_WORKING_MODEL: tuple[str, str] = ("gemini-flash-lite-latest", "v1beta")
+ACTIVE_WORKING_MODEL: tuple[str, str] = ("gemini-flash-latest", "v1beta")
 LAST_STATUS: dict[str, Any] = {
     "status": "ready",
     "model": ACTIVE_WORKING_MODEL[0],
@@ -52,6 +52,13 @@ ALLERGEN_LABELS: dict[str, str] = {
     "sesame": "Mè / Vừng",
 }
 
+PERSONA_DESCRIPTIONS: dict[str, str] = {
+    "office_busy": "Dân văn phòng bận rộn (ưu tiên nấu siêu tốc <= 15 phút, cơm hộp mang đi làm, trưa ăn ngoài tỉnh táo)",
+    "fit_eatclean": "Eat Clean & Giữ dáng / Tập luyện (ưu tiên giàu đạm, ít dầu mỡ, kiểm soát <= 380 kcal/phần)",
+    "student_saver": "Sống 1 mình / Ăn ngon tiết kiệm (ưu tiên chi phí < 50.000đ, nguyên liệu tối giản, dễ nấu 1-2 người)",
+    "family_care": "Chăm sóc Gia đình & Sức khỏe (ưu tiên mâm cơm đủ chất, hấp/luộc thanh đạm, ít muối cho người lớn tuổi/tim mạch/bà bầu)",
+}
+
 SYSTEM_INSTRUCTION = """Bạn là trợ lý tư vấn ăn uống thông minh và linh hoạt của Bữa Nhà — chuyên đồng hành cùng dân văn phòng trẻ và gia đình Việt.
 
 Bạn có 4 công cụ (tools) kết nối trực tiếp với kho dữ liệu thật:
@@ -61,15 +68,14 @@ Bạn có 4 công cụ (tools) kết nối trực tiếp với kho dữ liệu t
 4. `search_office_lunch`: Tìm kiếm gợi ý **ăn trưa ngoài quán / đặt đồ văn phòng** (20 lựa chọn quen thuộc với giá, calo, tag nhẹ bụng/không buồn ngủ).
 
 Nguyên tắc vận hành:
-1. PHẢI đọc kỹ `TRÍ NHỚ DÀI HẠN (memory)` và `Lịch sử hội thoại` để tuân thủ tuyệt đối các bệnh lý, thai kỳ, dị ứng, sở thích, nguyên liệu tủ lạnh mà người dùng đã nhắc trước đó (kể cả ở các tin nhắn rất xa).
-2. Nếu người dùng hỏi **ăn trưa ngoài / đi làm lười nấu / đặt cơm văn phòng**, đặt `intent = "office_lunch"`, gọi `search_office_lunch` và điền `selected_lunch_ids`.
-3. Nếu nhu cầu nấu ăn phổ thông khớp với kho 60 món, ưu tiên chọn trực tiếp mã ID sẵn có; khi gặp tình huống đặc thù (tủ lạnh còn đồ lẻ, bệnh lý, thai kỳ), gọi `get_available_ingredients` rồi `build_custom_recipe`.
-4. Nếu `intent = "meal"` (combo mâm cơm), `selected_ids` BẮT BUỘC chỉ chọn mã mâm cơm bắt đầu bằng `bua-`.
-5. ĐA DẠNG GỢI Ý: Kiểm tra `shown` và ưu tiên chọn món CHƯA xuất hiện trong `shown`.
-6. Cập nhật trí nhớ dài hạn qua `memory_updates`:
-   - Chỉ thêm vào `add` khi user nêu sự thật mới về sức khỏe, thai kỳ, dị ứng, món ghét, mục tiêu ăn uống hoặc nguyên liệu có trong tủ lạnh.
-   - Đưa vào `remove` nếu user nói rõ đã hết/bỏ điều kiện đó (vd: *"hôm nay không ăn kiêng nữa"*).
-7. Kết quả cuối cùng PHẢI là JSON object thuần túy:
+1. PHẢI đọc kỹ `TRÍ NHỚ DÀI HẠN (memory)`, `HỒ SƠ CÁ NHÂN HÓA (taste_profile)` và `Lịch sử hội thoại` để hiểu đúng đối tượng người dùng (Dân văn phòng bận rộn, Eat Clean giữ dáng, Tiết kiệm, hay Chăm sóc gia đình/bệnh lý) và chủ động gợi ý sát gu nhất ngay cả khi người dùng chỉ hỏi ngắn gọn như "Hôm nay ăn gì?".
+2. Nếu người dùng hỏi **kiến thức dinh dưỡng, mẹo nấu ăn, hỏi tại sao, hoặc trò chuyện tư vấn không yêu cầu chọn món** (vd: "Đau tim nên kiêng gì?", "Cách luộc ức gà không khô?"), hãy đặt `intent = "general"`, `selected_ids = []` và trả lời phân tích sâu sắc, chi tiết, dễ hiểu trong `message`.
+3. Nếu người dùng hỏi **ăn trưa ngoài / đi làm lười nấu / đặt cơm văn phòng**, đặt `intent = "office_lunch"`, gọi `search_office_lunch` và điền `selected_lunch_ids`.
+4. Nếu nhu cầu nấu ăn khớp với kho 60 món, chọn 2-3 mã ID đa dạng; khi gặp tình huống đặc thù (tủ lạnh còn đồ lẻ, bệnh lý, thai kỳ), gọi `get_available_ingredients` rồi `build_custom_recipe`.
+5. Nếu `intent = "meal"` (combo mâm cơm), `selected_ids` BẮT BUỘC chỉ chọn mã mâm cơm bắt đầu bằng `bua-`.
+6. ĐA DẠNG GỢI Ý: Kiểm tra `shown` và ưu tiên chọn món CHƯA xuất hiện trong `shown`.
+7. Cá nhân hóa lời giải thích qua trường `reasons`: Với mỗi ID trong `selected_ids`, hãy viết 1 câu ngắn gọn giải thích tại sao món đó lại hợp với đối tượng/khẩu vị/yêu cầu của người dùng.
+8. Kết quả cuối cùng PHẢI là JSON object thuần túy:
 {
   "servings": <int 1..6>,
   "budget": <int VND hoặc null nếu câu hiện tại không giới hạn>,
@@ -79,13 +85,14 @@ Nguyên tắc vận hành:
   "selected_ids": [<recipe_id hoặc meal_id hoặc custom_recipe_id>],
   "selected_lunch_ids": [<lunch_id nếu intent là office_lunch>],
   "selected_product_ids": [<product_id nếu mua lẻ>],
+  "reasons": {"<id>": "<lý do cá nhân hóa ngắn gọn riêng cho món này>"},
   "lighter": <boolean>,
   "health_advisory": <string ngắn gọn lưu ý dinh dưỡng/chế biến nếu có bệnh lý, thai kỳ hoặc dị ứng, hoặc null>,
   "memory_updates": {
     "add": {"health_conditions": [], "pregnancy": false, "allergies": [], "dislikes": [], "diet_goals": [], "fridge_items": []},
     "remove": {"health_conditions": [], "pregnancy": false, "allergies": [], "dislikes": [], "diet_goals": [], "fridge_items": []}
   },
-  "message": <lời nhắn tiếng Việt tự nhiên, giải thích lý do gợi ý>
+  "message": <lời nhắn tiếng Việt tự nhiên, thông minh, phân tích rõ lý do gợi ý theo đúng gu của người dùng>
 }"""
 
 GEMINI_TOOLS = [
@@ -476,14 +483,21 @@ def extract_json(raw: str) -> dict[str, Any]:
 
 
 def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int = 25) -> str:
-    """SQL Pre-filter: filter 60+ recipes down to top candidate matches for Gemini."""
+    """SQL Pre-filter + TikTok Behavioral Affinity Scoring over 60+ recipes."""
     text = normalize(content)
     exclusions = set(str(x) for x in ctx.get("excluded", []))
     memory = normalize_memory(ctx.get("memory"))
+    taste = ctx.get("taste_profile") if isinstance(ctx.get("taste_profile"), dict) else {}
+    persona = str(taste.get("persona") or "")
+    liked_tags = {normalize(str(t)) for t in (taste.get("liked_tags") or []) if str(t).strip()}
+    disliked_ings = {str(x) for x in (taste.get("disliked_ingredients") or []) if str(x).strip()}
+    tag_scores = taste.get("tag_scores") if isinstance(taste.get("tag_scores"), dict) else {}
+
     allergen_set = set(memory["allergies"])
-    if "fish" in exclusions:
-        allergen_set.add("fish")
     exclusions.update(memory["dislikes"])
+    exclusions.update(disliked_ings)
+    if "fish" in exclusions or "basa-fish" in exclusions:
+        allergen_set.add("fish")
 
     pantry_set = set(str(x) for x in ctx.get("pantry", []))
     shown_set = set(str(x) for x in ctx.get("shown", []))
@@ -491,6 +505,7 @@ def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int =
 
     recipes = list(db.scalars(select(Recipe).order_by(Recipe.minutes, Recipe.id)))
     scored: list[tuple[int, int, str]] = []
+    valid_recipe_ids: set[str] = set()
 
     for r in recipes:
         ing_ids = list(
@@ -508,13 +523,39 @@ def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int =
         )
         if quote["missing"]:
             continue
+        valid_recipe_ids.add(r.id)
 
         est_total = quote["total"]
+        norm_tags = [normalize(t) for t in r.tags]
+        norm_name = normalize(r.name)
         score = 0
         if r.id not in shown_set:
             score += 50
-        if normalize(r.name) in text or any(normalize(t) in text for t in r.tags):
-            score += 30
+        if norm_name in text or any(nt in text for nt in norm_tags):
+            score += 35
+
+        # Persona-based affinity boost
+        if persona == "office_busy" and (r.minutes <= 15 or "nhanh" in norm_tags):
+            score += 35
+        elif persona == "fit_eatclean" and ("eat-clean" in r.tags or "rau" in norm_tags):
+            score += 40
+        elif persona == "student_saver" and est_total <= 48000:
+            score += 40
+        elif persona == "family_care" and (
+            "canh" in norm_tags or any(w in norm_name for w in ("hap", "luoc", "ham"))
+        ):
+            score += 35
+
+        # Explicit liked tags & implicit behavioral tag_scores boost
+        for nt in norm_tags:
+            if nt in liked_tags:
+                score += 25
+            score += max(-15, min(30, int(tag_scores.get(nt, 0) or 0) * 2))
+        for iid in ing_ids:
+            if iid in liked_tags:
+                score += 20
+            score += max(-15, min(25, int(tag_scores.get(iid, 0) or 0) * 2))
+
         if (
             "eat clean" in text or "giam can" in text or "it dau" in text or "thanh dam" in text
         ) and "eat-clean" in r.tags:
@@ -532,10 +573,14 @@ def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int =
 
     scored.sort(key=lambda x: (x[0], x[1]))
     top_recipes = "\n".join(item[2] for item in scored[:limit])
-    meal_lines = "\n".join(f"- {m['id']}: {m['name']} ({' + '.join(m['recipe_ids'])})" for m in MEALS)
+    meal_lines = "\n".join(
+        f"- {m['id']}: {m['name']} ({' + '.join(m['recipe_ids'])})"
+        for m in MEALS
+        if all(rid in valid_recipe_ids for rid in m["recipe_ids"])
+    )
     return (
         f"Tổng kho Bữa Nhà hiện có {len(recipes)} công thức nấu ăn, {len(MEALS)} mâm cơm và {len(OFFICE_LUNCH_OPTIONS)} món ăn trưa văn phòng.\n"
-        f"Danh sách món nấu ứng viên đã lọc ({min(limit, len(scored))} món):\n{top_recipes}\n\n"
+        f"Danh sách món nấu ứng viên đã xếp hạng theo gu người dùng ({min(limit, len(scored))} món):\n{top_recipes}\n\n"
         f"Danh mục mâm cơm:\n{meal_lines}"
     )
 
@@ -616,7 +661,7 @@ def call_gemini(
     context: dict[str, Any],
     candidates_text: str = "",
     db=None,
-    timeout: int = 7,
+    timeout: int = 10,
 ) -> dict[str, Any] | None:
     global ACTIVE_WORKING_MODEL
     clean_key = api_key.strip().strip('"').strip("'")
@@ -624,6 +669,19 @@ def call_gemini(
         return None
 
     memory = normalize_memory(context.get("memory"))
+    taste = context.get("taste_profile") if isinstance(context.get("taste_profile"), dict) else {}
+    persona_key = str(taste.get("persona") or "")
+    persona_desc = PERSONA_DESCRIPTIONS.get(persona_key, "Chưa chọn chân dung cố định")
+    taste_summary = {
+        "persona": persona_desc,
+        "liked_tags": taste.get("liked_tags") or [],
+        "disliked_ingredients": taste.get("disliked_ingredients") or [],
+        "top_behavior_tags": sorted(
+            (taste.get("tag_scores") or {}).items(), key=lambda kv: kv[1], reverse=True
+        )[:6]
+        if isinstance(taste.get("tag_scores"), dict)
+        else [],
+    }
     history_lines = []
     for turn in context.get("history", [])[-8:]:
         role_label = "Người dùng" if turn.get("role") == "user" else "Trợ lý"
@@ -631,9 +689,10 @@ def call_gemini(
     history_block = (
         "Lịch sử hội thoại gần đây:\n" + "\n".join(history_lines) + "\n\n" if history_lines else ""
     )
-    clean_ctx = {k: v for k, v in context.items() if k not in {"history", "memory"}}
+    clean_ctx = {k: v for k, v in context.items() if k not in {"history", "memory", "taste_profile"}}
     user_text = (
-        f"TRÍ NHỚ DÀI HẠN (memory - KHÔNG BAO GIỜ QUÊN): {json.dumps(memory, ensure_ascii=False)}\n\n"
+        f"TRÍ NHỚ DÀI HẠN (memory - KHÔNG BAO GIỜ QUÊN): {json.dumps(memory, ensure_ascii=False)}\n"
+        f"HỒ SƠ CÁ NHÂN HÓA & HÀNH VI (taste_profile): {json.dumps(taste_summary, ensure_ascii=False)}\n\n"
         f"{candidates_text}\n\n"
         f"{history_block}"
         f"Ngữ cảnh phiên: {json.dumps(clean_ctx, ensure_ascii=False)}\n\n"
@@ -645,7 +704,7 @@ def call_gemini(
         if m_cand not in candidate_list:
             candidate_list.append(m_cand)
 
-    deadline = time.monotonic() + max(float(timeout), 8.0)
+    deadline = time.monotonic() + max(float(timeout), 15.0)
 
     for m, ver in candidate_list:
         if time.monotonic() >= deadline:
@@ -872,15 +931,22 @@ class GeminiProvider:
         if llm_data.get("lighter"):
             ctx["lighter"] = True
 
+        taste_obj = ctx.get("taste_profile") if isinstance(ctx.get("taste_profile"), dict) else {}
+        taste_dislikes = [str(x) for x in (taste_obj.get("disliked_ingredients") or []) if str(x).strip()]
         new_excluded = llm_data.get("excluded", [])
         if isinstance(new_excluded, list):
             ctx["excluded"] = sorted(
-                set(ctx.get("excluded", []) + memory["dislikes"] + [str(x) for x in new_excluded])
+                set(
+                    ctx.get("excluded", [])
+                    + memory["dislikes"]
+                    + taste_dislikes
+                    + [str(x) for x in new_excluded]
+                )
             )
 
         exclusions = set(ctx["excluded"])
         blocked_allergens = set(memory["allergies"])
-        if "fish" in exclusions:
+        if "fish" in exclusions or "basa-fish" in exclusions:
             blocked_allergens.add("fish")
 
         pantry_set = set(str(x) for x in ctx.get("pantry", []))
@@ -906,6 +972,9 @@ class GeminiProvider:
             "health_advisory": health_advisory,
             "context": ctx,
         }
+
+        if intent == "general" and not llm_data.get("selected_ids") and ai_message:
+            return result
 
         if intent == "office_lunch":
             lunch_ids = [str(x).strip() for x in (llm_data.get("selected_lunch_ids") or [])]
@@ -936,6 +1005,9 @@ class GeminiProvider:
                 return result
 
         custom_cache: dict[str, dict[str, Any]] = llm_data.get("_custom_recipes") or {}
+        reasons_map: dict[str, Any] = (
+            llm_data.get("reasons") if isinstance(llm_data.get("reasons"), dict) else {}
+        )
         selected_ids = llm_data.get("selected_ids", [])
 
         for raw_id in selected_ids:
@@ -948,6 +1020,7 @@ class GeminiProvider:
                     db, c_ing_ids, blocked_allergens
                 ):
                     continue
+                custom_reason = str(reasons_map.get(sid) or "").strip() or custom_recipe["description"]
                 result["suggestions"].append(
                     {
                         "id": sid,
@@ -957,7 +1030,7 @@ class GeminiProvider:
                         "total": built["estimated_total_vnd"],
                         "minutes": custom_recipe["minutes"],
                         "servings": ctx["servings"],
-                        "reason": custom_recipe["description"],
+                        "reason": custom_reason,
                     }
                 )
                 continue
@@ -1009,6 +1082,10 @@ class GeminiProvider:
             if intent != "meal" and ctx["budget"] is not None and quote["total"] > ctx["budget"]:
                 continue
 
+            custom_reason = (
+                str(reasons_map.get(key) or reasons_map.get(sid) or "").strip()
+                or "Phù hợp với khẩu vị và thời gian của bạn; đã tự trừ các gia vị có sẵn ở nhà."
+            )
             result["suggestions"].append(
                 {
                     "id": key,
@@ -1018,7 +1095,7 @@ class GeminiProvider:
                     "total": quote["total"],
                     "minutes": duration,
                     "servings": ctx["servings"],
-                    "reason": "Nguyên liệu tươi sạch theo gói; bạn có thể bỏ bớt những gia vị đã có sẵn ở nhà.",
+                    "reason": custom_reason,
                 }
             )
 

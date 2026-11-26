@@ -1,9 +1,10 @@
-import {Fragment, useState} from 'react';
+import {useEffect, useState, Fragment} from 'react';
 import {Link, useParams, useSearchParams} from 'react-router-dom';
 import {ArrowLeft, ArrowRight, Check, ShoppingBasket, Sparkles} from 'lucide-react';
 import {DemoNote, Empty, LoadState, PageTitle, ProductCard, ProductVisual, Quantity, RecipeCard} from '../components';
 import {useResource, useStore} from '../context';
 import {getRecipeNutrition} from '../nutrition';
+import {getTasteProfile, rankRecipesForYou, subscribeTaste} from '../taste';
 import {money} from '../api';
 import type {Product, Recipe} from '../types';
 
@@ -193,6 +194,7 @@ export function ProductDetail() {
 
 const RECIPE_CATEGORIES = [
   {id: 'all', label: 'Tất cả món'},
+  {id: 'for-you', label: '✨ Hợp gu của bạn'},
   {id: 'nhanh', label: 'Nhanh gọn (≤ 20 phút)'},
   {id: 'eat-clean', label: 'Eat clean · Ít dầu'},
   {id: 'man', label: 'Món mặn'},
@@ -221,22 +223,32 @@ export function Recipes() {
   }
   const visibleCount = pageState.key === resultKey ? pageState.count : PAGE_SIZE;
 
+  const [taste, setTaste] = useState(getTasteProfile);
+  useEffect(() => subscribeTaste(setTaste), []);
+
   const allRecipes = resource.data || [];
-  const filteredRecipes = allRecipes.filter(r => {
-    const matchesQuery =
-      !queryParam ||
-      foldVietnamese(r.name).includes(queryParam) ||
-      foldVietnamese(r.description).includes(queryParam) ||
-      r.tags?.some(t => foldVietnamese(t).includes(queryParam));
-    if (!matchesQuery) return false;
-    if (filterParam === 'all') return true;
-    if (filterParam === 'eat-clean') return !!getRecipeNutrition(r.id).eatClean;
-    if (filterParam === 'man') return r.tags?.some(t => ['món mặn', 'gà', 'bò', 'thịt', 'cá'].includes(t));
-    if (filterParam === 'canh') return r.tags?.includes('canh');
-    if (filterParam === 'rau') return r.tags?.includes('rau') || r.name.toLowerCase().includes('rau') || r.name.toLowerCase().includes('salad');
-    if (filterParam === 'nhanh') return r.minutes <= 20;
-    return true;
-  });
+  const rankedMap = new Map(rankRecipesForYou(allRecipes, taste).map((item, idx) => [item.recipe.id, {...item, rank: idx}]));
+  const filteredRecipes = allRecipes
+    .filter(r => {
+      const matchesQuery =
+        !queryParam ||
+        foldVietnamese(r.name).includes(queryParam) ||
+        foldVietnamese(r.description).includes(queryParam) ||
+        r.tags?.some(t => foldVietnamese(t).includes(queryParam));
+      if (!matchesQuery) return false;
+      if (filterParam === 'for-you') return rankedMap.has(r.id);
+      if (filterParam === 'all') return true;
+      if (filterParam === 'eat-clean') return !!getRecipeNutrition(r.id).eatClean;
+      if (filterParam === 'man') return r.tags?.some(t => ['món mặn', 'gà', 'bò', 'thịt', 'cá'].includes(t));
+      if (filterParam === 'canh') return r.tags?.includes('canh');
+      if (filterParam === 'rau') return r.tags?.includes('rau') || r.name.toLowerCase().includes('rau') || r.name.toLowerCase().includes('salad');
+      if (filterParam === 'nhanh') return r.minutes <= 20;
+      return true;
+    })
+    .sort((a, b) => {
+      if (filterParam !== 'for-you') return 0;
+      return (rankedMap.get(a.id)?.rank ?? 999) - (rankedMap.get(b.id)?.rank ?? 999);
+    });
 
   function setFilter(next: string) {
     const nextParams = new URLSearchParams(params);
@@ -306,7 +318,11 @@ export function Recipes() {
             <>
               <div className="recipe-grid" id="recipe-results">
                 {filteredRecipes.slice(0, visibleCount).map(r => (
-                  <RecipeCard recipe={r} key={r.id} />
+                  <RecipeCard
+                    recipe={r}
+                    key={r.id}
+                    matchReason={filterParam === 'for-you' ? rankedMap.get(r.id)?.matchReason : undefined}
+                  />
                 ))}
               </div>
               {visibleCount < filteredRecipes.length && (

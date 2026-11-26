@@ -219,3 +219,11 @@ test('mobile layout, redirect legacy routes, and session reset', async ({page, c
   await page.goto('/');
   await expect(page.getByRole('heading', {name: 'Phiên làm việc đã hết hạn'})).toBeVisible();
 });
+
+test('personalization onboarding ranks recipes for selected persona', async ({page}) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', {name: 'Món quen dễ bắt đầu'})).toBeVisible();
+  await page.getByRole('button', {name: /Eat Clean & Giữ dáng/}).click();
+  await expect(page.getByRole('heading', {name: /Đề xuất chuẩn gu Eat Clean & Giữ dáng/})).toBeVisible();
+  await expect(page.locator('.recipe-match-pill').first()).toBeVisible();
+});

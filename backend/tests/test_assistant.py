@@ -370,3 +370,56 @@ def test_custom_recipe_persists_in_db_for_sharing(system):
     data = res.json()
     assert data["is_custom"] is True
     assert data["estimated_kcal"] > 0
+
+
+def test_taste_profile_ranking_and_general_advisory_intent(system):
+    from unittest.mock import patch
+
+    from backend.app.gemini import GeminiProvider, build_dynamic_candidates
+
+    app, _, _ = system
+    with app.state.factory.begin() as db:
+        candidates = build_dynamic_candidates(
+            db,
+            "Hôm nay ăn gì?",
+            {
+                "servings": 2,
+                "taste_profile": {
+                    "persona": "fit_eatclean",
+                    "liked_tags": ["gà"],
+                    "disliked_ingredients": ["fish", "basa-fish"],
+                    "tag_scores": {"eat-clean": 10, "gà": 8},
+                },
+            },
+            limit=10,
+        )
+        assert "uc-ga" in candidates
+        assert "ca-thu-kho" not in candidates
+        assert "ca-basa" not in candidates
+
+        provider = GeminiProvider(api_key="fake-key")
+        general_llm = {
+            "message": "Người bị tim mạch nên hạn chế thực phẩm nhiều muối, mỡ động vật và đồ chiên rán.",
+            "intent": "general",
+            "selected_ids": [],
+            "servings": 2,
+            "health_advisory": "Lưu ý giảm lượng natri dưới 2000mg/ngày.",
+        }
+        with patch("backend.app.gemini.call_gemini", return_value=general_llm):
+            gen_res = provider.recommend(db, "Người bị đau tim nên kiêng ăn những thực phẩm gì?", {})
+            assert gen_res["mode"] == "gemini"
+            assert gen_res["suggestions"] == []
+            assert "muối" in gen_res["message"]
+
+        dish_with_reason_llm = {
+            "message": "Mình chọn món ức gà Eat Clean chuẩn gu của bạn!",
+            "intent": "dish",
+            "selected_ids": ["uc-ga-ap-chao-bong-cai"],
+            "reasons": {
+                "uc-ga-ap-chao-bong-cai": "Giàu đạm, ít chất béo và nấu nhanh 15 phút hợp gu Eat Clean của bạn."
+            },
+            "servings": 2,
+        }
+        with patch("backend.app.gemini.call_gemini", return_value=dish_with_reason_llm):
+            dish_res = provider.recommend(db, "Tối nay ăn gì?", {})
+            assert "Eat Clean" in dish_res["suggestions"][0]["reason"]

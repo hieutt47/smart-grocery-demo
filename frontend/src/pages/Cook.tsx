@@ -7,6 +7,7 @@ import {LoadState, PantryModal, Quantity} from '../components';
 import {getRecipeNutrition} from '../nutrition';
 import {getPantryStaples, isStaple, subscribePantry} from '../pantry';
 import {RecipePhotoCredit, RecipeVisual} from '../recipe-art';
+import {recordTasteSignal} from '../taste';
 import type {Quote, Recipe, Selection} from '../types';
 
 function loadCustomRecipe(id: string, stateRecipes?: Recipe[]): Recipe | null {
@@ -75,6 +76,9 @@ export function Cook() {
     )
       .then(rows => {
         setRecipes(rows);
+        for (const r of rows) {
+          recordTasteSignal(r.tags || [], 'view', r.id);
+        }
         setVariants(
           lighter
             ? Object.fromEntries(rows.filter(r => r.variants?.length).map(r => [r.id, r.variants![0].id]))
@@ -155,6 +159,9 @@ export function Cook() {
     try {
       await navigator.clipboard.writeText(text);
       trackEvent('copy_checklist', recipes[0]?.id);
+      for (const r of recipes) {
+        recordTasteSignal(r.tags || [], 'copy', r.id);
+      }
       notify('Đã sao chép danh sách đi chợ!');
     } catch {
       notify('Không thể tự sao chép; hãy chọn và copy thủ công nhé.');

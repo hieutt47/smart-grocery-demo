@@ -7,6 +7,7 @@ import {LoadState, PageTitle, PantryModal} from '../components';
 import {OFFICE_LUNCH_OPTIONS} from '../nutrition';
 import {getPantryStaples, subscribePantry} from '../pantry';
 import {RecipePhotoCredit, RecipeVisual} from '../recipe-art';
+import {getTasteProfile} from '../taste';
 import type {ActiveMemory, AssistantResult, ChatMessage, Conversation, Recipe} from '../types';
 
 const ALLERGEN_LABELS: Record<string, string> = {
@@ -107,7 +108,8 @@ export function Assistant() {
       const result = await api<AssistantResult>('/assistant/messages', 'POST', {
         content,
         conversation_id: conversationId,
-        pantry: pantryIds
+        pantry: pantryIds,
+        taste_profile: getTasteProfile()
       });
       setMessages(prev => [...prev, {role: 'user', content}, {role: 'assistant', result}]);
       setConversationId(result.conversation_id);

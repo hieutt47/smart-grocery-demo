@@ -557,6 +557,8 @@ def create_app(database_url=None, clock=None):
                     db.flush()
             if body.pantry:
                 conversation.context = {**conversation.context, "pantry": body.pantry}
+            if isinstance(body.taste_profile, dict):
+                conversation.context = {**conversation.context, "taste_profile": body.taste_profile}
             recent_history = []
             for msg in conversation.messages[-8:]:
                 if msg.get("role") == "user":

@@ -20,6 +20,53 @@
   line-height: 1.6;
   margin: 0 0 20px;
 }
+.home-intro.meal-start {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px;
+  padding: 28px 0 24px;
+}
+.meal-start-copy { padding: 28px 0; min-width: 0; }
+.meal-start-copy > p { color: var(--ink-soft); line-height: 1.6; margin: 0 0 22px; }
+.meal-paths { display: flex; gap: 8px; margin-bottom: 28px; }
+.meal-paths button { display: inline-flex; gap: 8px; align-items: center; justify-content: center; min-height: 48px; padding: 12px 20px; background: var(--bg-warm); color: var(--green); border-radius: 100px; font-weight: 600; }
+.meal-paths button[aria-pressed="true"] { background: var(--green); color: var(--surface); }
+.meal-paths button:hover { background: var(--accent-tint); color: var(--green); }
+.meal-path-copy h2 { font-size: 24px; line-height: 1.3; margin: 0 0 10px; text-wrap: balance; }
+.meal-path-copy p { max-width: 38ch; color: var(--ink-soft); line-height: 1.6; margin-bottom: 24px; }
+.meal-start .home-intro-actions { align-items: flex-start; flex-direction: column; gap: 8px; }
+.meal-advisor-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--green); font-size: 13px; }
+.meal-spotlight { min-width: 0; }
+.meal-spotlight-photo { display: block; height: 310px; border-radius: 20px 20px 0 0; overflow: hidden; }
+.meal-spotlight-photo .recipe-art-wrap { border-radius: 0; }
+.meal-spotlight-caption { background: var(--green); color: var(--surface); padding: 20px 24px; border-radius: 0 0 20px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.meal-spotlight-caption span { font-size: 12px; color: #d1e0d7; }
+.meal-spotlight-caption h2 { color: var(--surface); font-size: 24px; margin: 4px 0 8px; }
+.meal-spotlight-caption p { margin: 0; color: #d1e0d7; font-size: 13px; }
+.meal-spotlight-caption > a { display: grid; place-items: center; min-width: 48px; min-height: 48px; border-radius: 50%; background: var(--surface); color: var(--green); }
+.meal-spotlight-pending { min-height: 310px; display: grid; place-items: center; background: var(--bg-warm); border-radius: 20px; }
+.meal-lunch-preview { padding: 32px; background: var(--bg-warm); border-radius: 20px; }
+.meal-lunch-preview h2 { font-size: 24px; margin-bottom: 12px; }
+.meal-lunch-preview > p { font-size: 14px; color: var(--ink-soft); line-height: 1.6; }
+.meal-lunch-line { padding: 20px 0; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--line); }
+.meal-lunch-line span { color: var(--ink-soft); font-size: 13px; }
+.meal-lunch-preview > a { margin-top: 16px; }
+@media (max-width: 900px) {
+  .home-intro.meal-start { gap: 24px; }
+  .meal-spotlight-photo { height: 280px; }
+}
+@media (max-width: 680px) {
+  .home-intro.meal-start { grid-template-columns: minmax(0, 1fr); gap: 16px; padding-top: 8px; }
+  .meal-start-copy { padding: 0; }
+  .meal-start-copy > p { margin-bottom: 16px; font-size: 14px; }
+  .meal-paths { margin-bottom: 20px; }
+  .meal-paths button { flex: 1; }
+  .meal-path-copy h2 { font-size: 21px; }
+  .meal-path-copy p { font-size: 14px; margin-bottom: 16px; }
+  .meal-spotlight-photo { height: 220px; }
+  .meal-spotlight-caption { padding: 16px 20px; }
+  .meal-spotlight-caption h2 { font-size: 22px; }
+  .meal-lunch-preview { padding: 24px; }
+}
 .recipe-photo-frame img {
   display: block;
   width: 100%;
@@ -610,4 +657,162 @@
 .memory-chip-remove:hover {
   background: #dce6cf;
   color: #194a33;
+}
+
+.taste-onboard-card {
+  border: 1px solid #cfe0be;
+  background: linear-gradient(135deg, #f4f8ee 0%, #ffffff 100%);
+  border-radius: 18px;
+  padding: 22px 24px;
+  margin: 24px 0 32px;
+}
+
+.taste-onboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.taste-onboard-header h2 {
+  font-size: 20px;
+  margin-top: 4px;
+}
+
+.persona-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.persona-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 13px 14px;
+  border-radius: 13px;
+  background: #ffffff;
+  border: 1.5px solid var(--line);
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+
+.persona-btn:hover {
+  transform: translateY(-1px);
+  border-color: #96b27c;
+}
+
+.persona-btn.active {
+  border-color: var(--green);
+  background: #eff6e7;
+  box-shadow: 0 3px 10px rgba(40, 93, 68, 0.09);
+}
+
+.persona-btn-emoji {
+  font-size: 22px;
+}
+
+.persona-btn strong {
+  font-size: 13px;
+  color: var(--green-dark);
+}
+
+.persona-btn small {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.taste-chips-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.taste-chips-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4f634b;
+  margin-right: 4px;
+}
+
+.taste-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  min-height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  font-size: 12px;
+  color: #4b5d47;
+}
+
+.taste-chip-btn.liked {
+  background: var(--green);
+  border-color: var(--green);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.taste-chip-btn.disliked {
+  background: #fdf2f0;
+  border-color: #e5b7b0;
+  color: #a13a2e;
+  font-weight: 600;
+}
+
+.taste-summary-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 18px;
+  border-radius: 14px;
+  background: #f2f7ec;
+  border: 1px solid #d5e3c6;
+  margin: 22px 0 28px;
+  flex-wrap: wrap;
+}
+
+.taste-summary-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.recipe-match-pill {
+  display: inline-block;
+  padding: 3px 9px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  background: #eef5e6;
+  color: var(--green-dark);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+@media (max-width: 1020px) {
+  .persona-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .persona-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .persona-btn {
+    padding: 11px;
+  }
 }
