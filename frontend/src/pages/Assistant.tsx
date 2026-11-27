@@ -338,8 +338,8 @@ export function Assistant() {
               <div className="lunch-cards-list">
                 {lunchSuggestions.map(item => (
                   <article className="suggestion-card lunch-suggestion" key={item.id}>
-                    <div className="suggestion-thumb recipe-photo-fallback" aria-hidden="true">
-                      <span className="recipe-photo-missing-text">Chưa có ảnh món ăn</span>
+                    <div className="suggestion-thumb" aria-hidden="true">
+                      <RecipeVisual recipe={{id: item.id, name: item.name}} decorative={true} />
                     </div>
                     <div className="suggestion-info">
                       <div className="suggestion-header-row">
@@ -549,8 +549,8 @@ export function Assistant() {
 
                     {(m.result.lunch_suggestions || []).map(item => (
                       <article className="suggestion-card lunch-suggestion" key={item.id}>
-                        <div className="suggestion-thumb recipe-photo-fallback" aria-hidden="true">
-                          <span className="recipe-photo-missing-text">Chưa có ảnh món ăn</span>
+                        <div className="suggestion-thumb" aria-hidden="true">
+                          <RecipeVisual recipe={{id: item.id, name: item.name}} decorative={true} />
                         </div>
                         <div className="suggestion-info">
                           <div className="suggestion-header-row">

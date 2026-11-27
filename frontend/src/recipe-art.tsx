@@ -13,6 +13,32 @@ export function RecipePhotoCredit({recipeId}: {recipeId: string}) {
   );
 }
 
+function inferDishEmoji(id: string): string {
+  const k = id.toLowerCase();
+  if (k.includes('salad')) return '🥗';
+  if (k.includes('canh') || k.includes('sup') || k.includes('chao')) return '🍲';
+  if (k.includes('mi-') || k.includes('mien-') || k.includes('bun-') || k.includes('pho')) return '🍜';
+  if (k.includes('com-chien') || k.includes('com-')) return '🍛';
+  if (k.includes('tom')) return '🍤';
+  if (k.includes('ca-')) return '🐟';
+  if (k.includes('ga')) return '🍗';
+  if (k.includes('bo')) return '🥩';
+  if (k.includes('trung') || k.includes('yen-mach')) return '🍳';
+  if (k.includes('dau-hu')) return '🥘';
+  if (k.includes('rau') || k.includes('cai') || k.includes('nam') || k.includes('bi-do')) return '🥬';
+  return '🍲';
+}
+
+function inferPlateTheme(id: string, color?: string): string {
+  if (color && ['green', 'yellow', 'peach', 'rose', 'blue'].includes(color)) return color;
+  const k = id.toLowerCase();
+  if (k.includes('salad') || k.includes('rau') || k.includes('cai')) return 'green';
+  if (k.includes('trung') || k.includes('mi-') || k.includes('ga')) return 'yellow';
+  if (k.includes('bo') || k.includes('tom') || k.includes('sot-ca')) return 'rose';
+  if (k.includes('ca-') || k.includes('canh')) return 'blue';
+  return 'peach';
+}
+
 export function RecipeVisual({
   recipe,
   className = 'recipe-photo-cover',
@@ -27,6 +53,8 @@ export function RecipeVisual({
   const photo = Object.hasOwn(RECIPE_PHOTOS, recipe.id) ? RECIPE_PHOTOS[recipe.id] : undefined;
   const [failedSource, setFailedSource] = useState<string | null>(null);
   const available = photo && failedSource !== photo.large;
+  const theme = inferPlateTheme(recipe.id, recipe.color);
+  const emoji = recipe.emoji || inferDishEmoji(recipe.id);
 
   return (
     <div
@@ -34,7 +62,7 @@ export function RecipeVisual({
       data-recipe-id={recipe.id}
       data-photo-status={available ? 'available' : 'missing'}
       role={decorative ? undefined : 'img'}
-      aria-label={decorative ? undefined : available ? `Ảnh món ${recipe.name}` : `${recipe.name}: chưa có ảnh món ăn`}
+      aria-label={decorative ? undefined : available ? `Ảnh món ${recipe.name}` : `Món ${recipe.name}`}
       aria-hidden={decorative ? true : undefined}
     >
       {available ? (
@@ -51,7 +79,15 @@ export function RecipeVisual({
           style={{objectPosition: photo.position || 'center'}}
           onError={() => setFailedSource(photo.large)}
         />
-      ) : <span className="recipe-photo-missing-text">Chưa có ảnh món ăn</span>}
+      ) : (
+        <div className={`recipe-plate-art plate-theme-${theme}`} aria-hidden="true">
+          <span className="recipe-plate-outer">
+            <span className="recipe-plate-inner">
+              <span className="recipe-plate-emoji">{emoji}</span>
+            </span>
+          </span>
+        </div>
+      )}
     </div>
   );
 }

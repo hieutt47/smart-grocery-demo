@@ -1,19 +1,15 @@
 import {useEffect, useState} from 'react';
 import {
   ArrowRight,
-  ChevronLeft,
-  ChevronRight,
   ChefHat,
   Clock3,
   Dices,
   Leaf,
-  RotateCw,
   Share2,
   SlidersHorizontal,
   Sparkles,
   Users,
-  UtensilsCrossed,
-  X
+  UtensilsCrossed
 } from 'lucide-react';
 import {Link} from 'react-router-dom';
 import {money, trackEvent} from '../api';
@@ -33,137 +29,54 @@ import {
 } from '../taste';
 import type {Recipe} from '../types';
 
-const photoChicken = new URL('../assets/chicken.jpg', import.meta.url).href;
-const photoTomatoes = new URL('../assets/tomatoes.jpg', import.meta.url).href;
-const photoEggs = new URL('../assets/eggs.jpg', import.meta.url).href;
-const photoGreens = new URL('../assets/greens.jpg', import.meta.url).href;
-
-interface TabletopShowcaseDish {
-  id: string;
+interface HeroSpotlightDish {
+  id: 'thit-kho-trung' | 'dau-hu-nhoi-thit-sot-ca' | 'rau-muong-xao';
   title: string;
-  shortNote: string;
-  eyebrow: string;
+  shortTitle: string;
+  tag: string;
   description: string;
   price: number;
   minutes: number;
   kcal: number;
-  image: string;
   pills: string[];
-  personas: string[];
 }
 
-const TABLETOP_SHOWCASE_DISHES: TabletopShowcaseDish[] = [
-  {
-    id: 'uc-ga-ap-chao-bong-cai',
-    title: 'Ức gà áp chảo bông cải',
-    shortNote: 'Thanh vị · Giàu đạm',
-    eyebrow: 'MÓN CHÍNH · TINH TẾ & THANH VỊ',
-    description:
-      'Ức gà áp chảo vàng nhẹ, mềm mọng bên trong. Dùng kèm bông cải xanh giòn ngọt, tiêu đen và sốt dầu hào thanh nhẹ.',
-    price: 52000,
-    minutes: 15,
-    kcal: 330,
-    image: photoChicken,
-    pills: ['Ức gà phi lê', 'Bông cải xanh', 'Tiêu đen'],
-    personas: ['fit_eatclean', 'office_busy', 'health_recovery']
-  },
+const HERO_SPOTLIGHT_DISHES: HeroSpotlightDish[] = [
   {
     id: 'thit-kho-trung',
     title: 'Thịt kho trứng nước dừa',
-    shortNote: 'Đậm đà · Ấm áp',
-    eyebrow: 'VỊ NHÀ · ĐẬM ĐÀ & ĐƯA CƠM',
+    shortTitle: 'Thịt kho trứng',
+    tag: 'Món mặn đậm đà',
     description:
-      'Thịt heo kho mềm rục quyện cùng trứng gà thấm vị nước màu dừa óng ả, thơm dịu mùi hành tỏi phi truyền thống.',
+      'Thịt heo kho mềm quyện cùng trứng gà thấm vị nước dừa óng ả, chuẩn hương vị bữa cơm nhà ấm cúng.',
     price: 58000,
     minutes: 30,
     kcal: 540,
-    image: RECIPE_PHOTOS['thit-kho-trung'].large,
-    pills: ['Thịt heo tươi', 'Trứng gà', 'Hành tím'],
-    personas: ['kid_elder_family', 'family_care']
+    pills: ['Thịt heo tươi', 'Trứng gà', 'Hành tím']
   },
   {
-    id: 'bo-xao-ca-chua',
-    title: 'Bò xào cà chua tiêu đen',
-    shortNote: 'Mềm ngọt · Bổ dưỡng',
-    eyebrow: 'MÓN CHÍNH · GIÀU SẮT & ĐẬM ĐÀ',
+    id: 'dau-hu-nhoi-thit-sot-ca',
+    title: 'Đậu hũ dồn thịt sốt cà chua',
+    shortTitle: 'Đậu hũ sốt cà',
+    tag: 'Mềm bùi · Dễ tiêu',
     description:
-      'Thăn bò xào lửa lớn vừa chín tới giữ trọn vị ngọt tự nhiên, quyện sốt cà chua chín mọng và hành lá thơm nồng.',
-    price: 65000,
-    minutes: 15,
-    kcal: 380,
-    image: photoTomatoes,
-    pills: ['Thịt bò tươi', 'Cà chua chín', 'Tiêu đen'],
-    personas: ['maternity_care', 'office_busy']
+      'Đậu hũ non mềm mịn nhồi thịt băm rim trong sốt cà chua chín đỏ, vị thanh dịu hợp cả trẻ nhỏ lẫn người lớn tuổi.',
+    price: 45000,
+    minutes: 25,
+    kcal: 340,
+    pills: ['Đậu hũ non', 'Thịt băm', 'Sốt cà chua']
   },
   {
     id: 'rau-muong-xao',
     title: 'Rau muống xào tỏi phi',
-    shortNote: 'Xanh giòn · Thân quen',
-    eyebrow: 'MÓN RAU · THANH MÁT & GIÒN NGỌT',
+    shortTitle: 'Rau muống xào',
+    tag: 'Xanh giòn · 15 phút',
     description:
-      'Rau muống non xào nhanh trên lửa lớn giữ sắc xanh mướt, dậy hương tỏi đập dập phi vàng thơm phức.',
+      'Rau muống non xào lửa lớn giữ trọn sắc xanh giòn ngọt, dậy mùi tỏi đập dập phi vàng thơm phức.',
     price: 25000,
     minutes: 15,
     kcal: 150,
-    image: RECIPE_PHOTOS['rau-muong-xao'].large,
-    pills: ['Rau muống non', 'Tỏi phi vàng', 'Dầu hào'],
-    personas: ['student_saver', 'fit_eatclean', 'health_recovery']
-  },
-  {
-    id: 'dau-hu-nhoi-thit-sot-ca',
-    title: 'Đậu hũ dồn thịt sốt cà',
-    shortNote: 'Mềm bùi · Tròn vị',
-    eyebrow: 'VỊ VIỆT · MỀM NGON & DỄ TIÊU',
-    description:
-      'Đậu hũ non mềm mịn nhồi thịt băm rim trong sốt cà chua đỏ sánh, vị chua ngọt dịu dàng hợp cả trẻ nhỏ lẫn người lớn tuổi.',
-    price: 45000,
-    minutes: 25,
-    kcal: 340,
-    image: RECIPE_PHOTOS['dau-hu-nhoi-thit-sot-ca'].large,
-    pills: ['Đậu hũ non', 'Thịt băm', 'Sốt cà chua'],
-    personas: ['kid_elder_family', 'student_saver', 'maternity_care']
-  },
-  {
-    id: 'ga-rang-gung',
-    title: 'Gà rang gừng ấm bụng',
-    shortNote: 'Thơm nồng · Đưa cơm',
-    eyebrow: 'MÓN CHÍNH · ẤM NỒNG & TRÒN VỊ',
-    description:
-      'Thịt gà rang săn vàng óng quyện sợi gừng tươi thơm ấm, vị mặn ngọt hài hòa rất hợp cho bữa tối gia đình.',
-    price: 55000,
-    minutes: 25,
-    kcal: 420,
-    image: photoChicken,
-    pills: ['Thịt gà ta', 'Gừng tươi thái sợi', 'Nước mắm'],
-    personas: ['maternity_care', 'family_care']
-  },
-  {
-    id: 'trung-cuon-rau-cu',
-    title: 'Trứng cuộn rau củ tươi',
-    shortNote: 'Nhanh gọn · Đủ chất',
-    eyebrow: 'BỮA NHANH · MỀM MỊN & TIẾT KIỆM',
-    description:
-      'Trứng gà đánh bông cuộn khéo cùng cà rốt và hành lá thái nhỏ, chín mềm vàng ươm chỉ trong 10 phút.',
-    price: 28000,
-    minutes: 10,
-    kcal: 230,
-    image: photoEggs,
-    pills: ['Trứng gà tươi', 'Cà rốt', 'Hành lá'],
-    personas: ['student_saver', 'office_busy', 'kid_elder_family']
-  },
-  {
-    id: 'salad-uc-ga-bo',
-    title: 'Salad ức gà & rau vườn',
-    shortNote: 'Tươi mát · Nhẹ bụng',
-    eyebrow: 'EAT CLEAN · TƯƠI MÁT & GIỮ DÁNG',
-    description:
-      'Ức gà áp chảo thái lát kết hợp rau xanh tươi giòn, cà chua và sốt chanh thanh mát giúp nhẹ bụng cả ngày.',
-    price: 49000,
-    minutes: 15,
-    kcal: 340,
-    image: photoGreens,
-    pills: ['Ức gà áp chảo', 'Rau vườn tươi', 'Sốt chanh'],
-    personas: ['fit_eatclean', 'health_recovery']
+    pills: ['Rau muống non', 'Tỏi phi vàng', 'Dầu hào']
   }
 ];
 
@@ -183,46 +96,16 @@ export function Home() {
   const recipes = useResource<Recipe[]>('/recipes');
   const {shareItem} = useStore();
   const [taste, setTaste] = useState<TasteProfile>(getTasteProfile);
+  const [spotlightIdx, setSpotlightIdx] = useState(0);
   const [pickerMode, setPickerMode] = useState<'lunch' | 'cook'>('lunch');
   const [groupMode, setGroupMode] = useState(false);
   const [randomRecipe, setRandomRecipe] = useState<Recipe | null>(null);
   const [randomLunch, setRandomLunch] = useState<OfficeLunchOption>(OFFICE_LUNCH_OPTIONS[0]);
 
-  // "LA TABLE" Interactive Rotating Tabletop State
-  const [selectedDishIdx, setSelectedDishIdx] = useState(0);
-  const [dockPage, setDockPage] = useState<0 | 1>(0);
-  const [plateAngle, setPlateAngle] = useState(0);
-  const [plateModalOpen, setPlateModalOpen] = useState(false);
-
   useEffect(() => subscribeTaste(setTaste), []);
 
-  // Sort showcase dishes so the user's persona favorite is first on the dining table
-  const orderedShowcase = [...TABLETOP_SHOWCASE_DISHES].sort((a, b) => {
-    if (!taste.persona) return 0;
-    const aMatch = a.personas.includes(taste.persona) ? 1 : 0;
-    const bMatch = b.personas.includes(taste.persona) ? 1 : 0;
-    return bMatch - aMatch;
-  });
-
-  const activeShowcase = orderedShowcase[selectedDishIdx] || orderedShowcase[0];
-  const dockSlice = orderedShowcase.slice(dockPage * 4, dockPage * 4 + 4);
-
-  function selectTabletopDish(globalIdx: number) {
-    if (globalIdx === selectedDishIdx) {
-      setPlateModalOpen(true);
-      return;
-    }
-    setSelectedDishIdx(globalIdx);
-    setPlateAngle(prev => prev + 180);
-  }
-
-  function flipDockPage(dir: 'prev' | 'next') {
-    const nextPage: 0 | 1 = dockPage === 0 ? 1 : 0;
-    setDockPage(nextPage);
-    const nextIdx = nextPage * 4;
-    setSelectedDishIdx(nextIdx);
-    setPlateAngle(prev => prev + (dir === 'next' ? 180 : -180));
-  }
+  const activeSpotlight = HERO_SPOTLIGHT_DISHES[spotlightIdx] || HERO_SPOTLIGHT_DISHES[0];
+  const spotlightPhoto = RECIPE_PHOTOS[activeSpotlight.id];
 
   const featured = ['rau-muong-xao', 'thit-kho-trung', 'dau-hu-nhoi-thit-sot-ca'];
   const allRecipes = recipes.data || [];
@@ -258,241 +141,107 @@ export function Home() {
 
   return (
     <div className="home-page home-clarity">
-      {/* LA TABLE — Fine-Dining Rotating Tabletop Showcase Stage */}
-      <section className="home-intro tabletop-stage" aria-labelledby="hero-title">
-        <div className="tabletop-topbar">
-          <div className="tabletop-brand-mini">
-            <span className="tabletop-monogram" aria-hidden="true">BN</span>
-            <div>
-              <strong>LA TABLE</strong>
-              <small>BỮA NHÀ SIGNATURE</small>
-            </div>
-          </div>
+      <section className="home-intro bua-nha-hero" aria-labelledby="hero-title">
+        <div className="home-intro-copy bua-nha-hero-copy">
+          <button
+            type="button"
+            className="bua-nha-taste-pill"
+            onClick={openTasteOnboarding}
+            title="Tùy chỉnh hồ sơ khẩu vị & sức khỏe"
+          >
+            <Sparkles size={14} aria-hidden="true" />
+            <span>
+              {activePersona
+                ? `Đang cá nhân hóa: ${activePersona.emoji} ${activePersona.title} · Đổi gu`
+                : 'Cá nhân hóa thực đơn theo đối tượng & sức khỏe · Chọn gu'}
+            </span>
+          </button>
 
-          <h1 id="hero-title" className="tabletop-center-slogan">
-            <span>Hôm nay ăn gì?</span>
-            <small>─── MỘT VÒNG VỊ NGON ───</small>
+          <h1 id="hero-title">
+            Hôm nay ăn gì?
+            <span className="bua-nha-hero-accent">Ngon từ điều giản dị.</span>
           </h1>
 
-          <button
-            type="button"
-            className="tabletop-taste-trigger"
-            onClick={openTasteOnboarding}
-            title="Tùy chỉnh gu ăn uống cá nhân"
-          >
-            <SlidersHorizontal size={14} aria-hidden="true" />
-            <span>{activePersona ? `${activePersona.emoji} ${activePersona.title}` : 'Chọn gu'}</span>
-          </button>
-        </div>
+          <p>
+            Chọn món hợp khẩu vị và thể trạng, xem công thức từng bước và tự động lên checklist nguyên liệu kèm chi phí đi chợ dự kiến.
+          </p>
 
-        {/* Upper-Center Wooden Dining Table Arc & Overhead Rotating Ceramic Plate */}
-        <div className="tabletop-arena">
-          <div className="tabletop-side-quote" aria-hidden="true">
-            <span className="tabletop-gold-line" />
-            <p className="tabletop-serif-quote">
-              Ngon từ
-              <br />
-              <em>điều giản dị.</em>
-            </p>
-            <span className="tabletop-micro-note">
-              NGUYÊN LIỆU TƯƠI
-              <br />
-              HƯƠNG VỊ TRỌN VẸN
-            </span>
+          <div className="bua-nha-value-strip" aria-label="Điểm nổi bật">
+            <span>🍲 60+ món chuẩn vị nhà</span>
+            <span>🧠 AI nhớ thể trạng & dị ứng</span>
+            <span>📝 Checklist đi chợ 1 chạm</span>
           </div>
 
-          <div className="tabletop-wood-zone">
-            <div className="tabletop-wood-arc" aria-hidden="true">
-              <div className="tabletop-wood-grain" />
-            </div>
-
-            <button
-              type="button"
-              className="tabletop-plate-btn"
-              onClick={() => setPlateModalOpen(true)}
-              aria-label={`Khám phá chi tiết món ${activeShowcase.title}`}
-            >
-              <span
-                className="tabletop-plate-rotor"
-                style={{transform: `rotate(${plateAngle}deg)`}}
-              >
-                <span className="tabletop-plate-rim">
-                  <img
-                    src={activeShowcase.image}
-                    alt={activeShowcase.title}
-                    className="tabletop-plate-img"
-                  />
-                </span>
-              </span>
-            </button>
-          </div>
-
-          <button
-            type="button"
-            className="tabletop-side-hint"
-            onClick={() => setPlateModalOpen(true)}
-          >
-            <span className="tabletop-hint-icon" aria-hidden="true">
-              <RotateCw size={14} />
-            </span>
-            <span>
-              <strong>Nhấn vào món</strong>
-              <small>Khám phá món ăn</small>
-            </span>
-          </button>
-        </div>
-
-        {/* Center Dish Narrative Block */}
-        <div className="tabletop-narrative" key={activeShowcase.id}>
-          <span className="tabletop-eyebrow">
-            {activePersona ? `✨ CHUẨN GU ${activePersona.title.toUpperCase()} · ` : ''}
-            {activeShowcase.eyebrow}
-          </span>
-          <h2 className="tabletop-dish-title">{activeShowcase.title}</h2>
-          <p className="tabletop-dish-desc">{activeShowcase.description}</p>
-
-          <div className="tabletop-meta-row">
-            <strong className="tabletop-price">{money(activeShowcase.price)}</strong>
-            <span className="tabletop-meta-sep" aria-hidden="true">·</span>
-            <span>⏱ {activeShowcase.minutes} phút</span>
-            <span className="tabletop-meta-sep" aria-hidden="true">·</span>
-            <span>~{activeShowcase.kcal} kcal</span>
-            <span className="tabletop-meta-sep" aria-hidden="true">·</span>
-            <span>2 phần</span>
-          </div>
-
-          <div className="tabletop-ing-pills" aria-label="Nguyên liệu chính">
-            {activeShowcase.pills.map(pill => (
-              <span key={pill} className="tabletop-ing-pill">{pill}</span>
-            ))}
-          </div>
-
-          <div className="home-intro-actions tabletop-actions">
+          <div className="home-intro-actions">
             <Link className="button primary" to="/recipes">
               <span>Xem công thức</span>
               <ArrowRight size={18} aria-hidden="true" />
             </Link>
-            <Link className="tabletop-cook-now" to={`/cook?ids=${activeShowcase.id}`}>
-              <ChefHat size={16} aria-hidden="true" />
-              <span>Nấu món này ngay</span>
-            </Link>
-            <Link className="text-link" to="/assistant">
+            <Link className="text-link bua-nha-ai-cta" to="/assistant">
+              <Sparkles size={16} aria-hidden="true" />
               <span>Nhờ gợi ý theo nhu cầu</span>
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
           </div>
         </div>
 
-        {/* Bottom 4-Card Carousel Dock */}
-        <div className="tabletop-dock">
-          <div className="tabletop-dock-header">
-            <p className="tabletop-dock-prompt">
-              Hôm nay, bạn muốn <em>thưởng thức gì?</em>
-            </p>
-            <span className="tabletop-dock-page">TRANG 0{dockPage + 1} / 02</span>
-          </div>
-
-          <div className="tabletop-dock-row">
-            <button
-              type="button"
-              className="tabletop-arrow-btn"
-              onClick={() => flipDockPage('prev')}
-              aria-label="Trang món trước"
-            >
-              <ChevronLeft size={16} aria-hidden="true" />
-            </button>
-
-            <div className="tabletop-dock-grid" role="tablist" aria-label="Chọn món trên bàn xoay">
-              {dockSlice.map((dish, idx) => {
-                const globalIdx = dockPage * 4 + idx;
-                const isActive = globalIdx === selectedDishIdx;
-                return (
-                  <button
-                    type="button"
-                    role="tab"
-                    key={dish.id}
-                    aria-selected={isActive}
-                    className={`tabletop-mini-card ${isActive ? 'active' : ''}`}
-                    onClick={() => selectTabletopDish(globalIdx)}
-                  >
-                    <span className="tabletop-mini-plate">
-                      <img src={dish.image} alt="" aria-hidden="true" />
-                    </span>
-                    <span className="tabletop-mini-copy">
-                      <strong>{dish.title}</strong>
-                      <small>{dish.shortNote}</small>
-                      <b>{money(dish.price)}</b>
-                    </span>
-                    {isActive && <span className="tabletop-mini-dot" aria-hidden="true" />}
-                  </button>
-                );
-              })}
+        <div className="bua-nha-spotlight">
+          <article className="bua-nha-spotlight-card" key={activeSpotlight.id}>
+            <div className="bua-nha-spotlight-photo">
+              <img
+                src={spotlightPhoto.small}
+                alt={activeSpotlight.title}
+                loading="lazy"
+                decoding="async"
+                style={{objectPosition: spotlightPhoto.position || 'center'}}
+              />
+              <span className="bua-nha-spotlight-badge">{activeSpotlight.tag}</span>
+              <span className="bua-nha-spotlight-meta-pill">
+                ⏱ {activeSpotlight.minutes} phút · ~{activeSpotlight.kcal} kcal
+              </span>
             </div>
 
-            <button
-              type="button"
-              className="tabletop-arrow-btn"
-              onClick={() => flipDockPage('next')}
-              aria-label="Trang món tiếp theo"
-            >
-              <ChevronRight size={16} aria-hidden="true" />
-            </button>
-          </div>
-
-          <div className="tabletop-dock-dots" aria-hidden="true">
-            <span className={`tabletop-dot-pill ${dockPage === 0 ? 'active' : ''}`} />
-            <span className={`tabletop-dot-pill ${dockPage === 1 ? 'active' : ''}`} />
-          </div>
-        </div>
-
-        {/* Blurred-Backdrop Dish Detail Modal Overlay (Triggered when clicking the hero plate) */}
-        {plateModalOpen && (
-          <div
-            className="tabletop-detail-overlay"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Chi tiết món ${activeShowcase.title}`}
-          >
-            <div className="tabletop-detail-card">
-              <button
-                type="button"
-                className="icon-button tabletop-detail-close"
-                onClick={() => setPlateModalOpen(false)}
-                aria-label="Đóng chi tiết món"
-              >
-                <X size={18} aria-hidden="true" />
-              </button>
-              <div className="tabletop-detail-plate">
-                <img src={activeShowcase.image} alt={activeShowcase.title} />
+            <div className="bua-nha-spotlight-body">
+              <div className="bua-nha-spotlight-title-row">
+                <h2>{activeSpotlight.title}</h2>
+                <strong>≈ {money(activeSpotlight.price)}</strong>
               </div>
-              <span className="tabletop-eyebrow">{activeShowcase.eyebrow}</span>
-              <h3>{activeShowcase.title}</h3>
-              <p>{activeShowcase.description}</p>
-              <div className="tabletop-ing-pills">
-                {activeShowcase.pills.map(pill => (
-                  <span key={pill} className="tabletop-ing-pill">{pill}</span>
-                ))}
-              </div>
-              <div className="tabletop-meta-row">
-                <strong className="tabletop-price">{money(activeShowcase.price)}</strong>
-                <span className="tabletop-meta-sep">·</span>
-                <span>⏱ {activeShowcase.minutes} phút</span>
-                <span className="tabletop-meta-sep">·</span>
-                <span>~{activeShowcase.kcal} kcal</span>
-              </div>
-              <div className="tabletop-detail-actions">
-                <Link
-                  className="tabletop-cook-now"
-                  to={`/cook?ids=${activeShowcase.id}`}
-                  onClick={() => setPlateModalOpen(false)}
-                >
-                  <ChefHat size={16} aria-hidden="true" />
-                  <span>Xem cách nấu & Checklist đi chợ</span>
+              <p>{activeSpotlight.description}</p>
+              <div className="bua-nha-spotlight-footer">
+                <div className="bua-nha-spotlight-pills">
+                  {activeSpotlight.pills.map(pill => (
+                    <span key={pill}>{pill}</span>
+                  ))}
+                </div>
+                <Link className="bua-nha-spotlight-link" to={`/cook?ids=${activeSpotlight.id}`}>
+                  <span>Vào bếp nấu</span>
+                  <ArrowRight size={15} aria-hidden="true" />
                 </Link>
               </div>
             </div>
+          </article>
+
+          <div className="bua-nha-spotlight-tabs" role="tablist" aria-label="Đổi món tiêu điểm">
+            {HERO_SPOTLIGHT_DISHES.map((dish, idx) => {
+              const active = idx === spotlightIdx;
+              return (
+                <button
+                  type="button"
+                  role="tab"
+                  key={dish.id}
+                  aria-selected={active}
+                  className={`bua-nha-spotlight-tab ${active ? 'active' : ''}`}
+                  onClick={() => setSpotlightIdx(idx)}
+                >
+                  <div>
+                    <strong>{dish.shortTitle}</strong>
+                    <small>{dish.minutes}p · ≈{money(dish.price)}</small>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
       </section>
 
       <section className="section home-featured" aria-labelledby="recipes-title">
