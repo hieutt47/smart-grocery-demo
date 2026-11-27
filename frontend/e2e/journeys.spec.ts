@@ -3,11 +3,12 @@ import {test, expect} from '@playwright/test';
 test.beforeEach(async ({page}, testInfo) => {
   if (testInfo.title.includes('personalization onboarding')) return;
   await page.addInitScript(() => {
-    if (!localStorage.getItem('bua_nha_taste_profile_v3')) {
+    if (!localStorage.getItem('bua_nha_taste_profile_v4')) {
       localStorage.setItem(
-        'bua_nha_taste_profile_v3',
+        'bua_nha_taste_profile_v4',
         JSON.stringify({
           persona: null,
+          health_notes: [],
           liked_tags: [],
           disliked_ingredients: [],
           tag_scores: {},
@@ -241,31 +242,37 @@ test('mobile layout, redirect legacy routes, and session reset', async ({page, c
 
 test('personalization onboarding ranks recipes for selected persona', async ({page}) => {
   await page.goto('/');
-  // 1-time onboarding survey modal pops up automatically on first visit (Step 1/3)
+  // 1-time onboarding survey modal pops up automatically on first visit (Step 1/4)
   const modal = page.getByRole('dialog', {name: /Bạn thích ăn uống theo gu nào/});
   await expect(modal).toBeVisible();
-  await expect(modal.getByText('Câu 1 / 3')).toBeVisible();
+  await expect(modal.getByText('Câu 1 / 4')).toBeVisible();
 
-  // Step 1: Vote Persona -> Click Next
-  await modal.getByRole('button', {name: /Eat Clean & Giữ dáng/}).click();
+  // Step 1: Vote Persona (Mẹ bầu & Sau sinh) -> Click Next
+  await modal.getByRole('button', {name: /Mẹ bầu & Sau sinh/}).click();
   await modal.getByRole('button', {name: 'Tiếp theo'}).click();
 
-  // Step 2: Vote Liked food topics -> Click Next
-  await expect(modal.getByText('Câu 2 / 3')).toBeVisible();
+  // Step 2: Pregnancy is auto-selected; also toggle Stomach care -> Click Next
+  await expect(modal.getByText('Câu 2 / 4')).toBeVisible();
+  await expect(modal.getByRole('button', {name: /Đang mang thai/})).toHaveAttribute('aria-pressed', 'true');
+  await modal.getByRole('button', {name: /Đau dạ dày/}).click();
+  await modal.getByRole('button', {name: 'Tiếp theo'}).click();
+
+  // Step 3: Vote Liked food topics -> Click Next
+  await expect(modal.getByText('Câu 3 / 4')).toBeVisible();
   await modal.getByRole('button', {name: /Mê thịt gà/}).click();
   await modal.getByRole('button', {name: 'Tiếp theo'}).click();
 
-  // Step 3: Vote Disliked ingredients -> Click Finish
-  await expect(modal.getByText('Câu 3 / 3')).toBeVisible();
+  // Step 4: Vote Disliked / Allergen ingredients -> Click Finish
+  await expect(modal.getByText('Câu 4 / 4')).toBeVisible();
   await modal.getByRole('button', {name: /Không thích cá/}).click();
   await modal.getByRole('button', {name: 'Hoàn tất & Xem món hợp gu'}).click();
 
   await expect(modal).toHaveCount(0);
-  await expect(page.getByRole('heading', {name: /Đề xuất chuẩn gu Eat Clean & Giữ dáng/})).toBeVisible();
+  await expect(page.getByRole('heading', {name: /Đề xuất chuẩn gu Mẹ bầu & Sau sinh/})).toBeVisible();
   await expect(page.locator('.recipe-match-pill').first()).toBeVisible();
 
   // Reloading does NOT show the modal again (appears only once)
   await page.reload();
   await expect(page.getByRole('dialog', {name: /Bạn thích ăn uống theo gu nào/})).toHaveCount(0);
-  await expect(page.getByRole('heading', {name: /Đề xuất chuẩn gu Eat Clean & Giữ dáng/})).toBeVisible();
+  await expect(page.getByRole('heading', {name: /Đề xuất chuẩn gu Mẹ bầu & Sau sinh/})).toBeVisible();
 });

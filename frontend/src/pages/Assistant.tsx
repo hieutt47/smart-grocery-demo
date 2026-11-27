@@ -11,7 +11,10 @@ import {
   getTasteProfile,
   openTasteOnboarding,
   PERSONA_DEFINITIONS,
+  saveTasteProfile,
   subscribeTaste,
+  TASTE_DISLIKE_CHIPS,
+  TASTE_HEALTH_CHIPS,
   type TasteProfile
 } from '../taste';
 import type {ActiveMemory, AssistantResult, ChatMessage, Conversation, Recipe} from '../types';
@@ -156,6 +159,25 @@ export function Assistant() {
   }
 
   async function removeMemoryChip(category: string, value: string) {
+    if (category === 'taste_health') {
+      const next: TasteProfile = {
+        ...taste,
+        persona: value === 'pregnancy' && taste.persona === 'maternity_care' ? null : taste.persona,
+        health_notes: (taste.health_notes || []).filter(h => h !== value)
+      };
+      setTaste(next);
+      saveTasteProfile(next);
+      return;
+    }
+    if (category === 'taste_dislike') {
+      const next: TasteProfile = {
+        ...taste,
+        disliked_ingredients: (taste.disliked_ingredients || []).filter(d => d !== value)
+      };
+      setTaste(next);
+      saveTasteProfile(next);
+      return;
+    }
     try {
       const res = await api<{memory: ActiveMemory}>(
         `/assistant/memory?category=${encodeURIComponent(category)}&value=${encodeURIComponent(value)}`,
@@ -167,20 +189,44 @@ export function Assistant() {
     }
   }
 
-  const memoryChips: {category: string; value: string; label: string}[] = memory
+  const tasteHealthChips = (taste.health_notes || []).map(hid => {
+    const found = TASTE_HEALTH_CHIPS.find(c => c.id === hid);
+    return {
+      category: 'taste_health',
+      value: hid,
+      label: found ? found.label : `Lưu ý: ${hid}`
+    };
+  });
+
+  const tasteDislikeChips = (taste.disliked_ingredients || []).map(did => {
+    const found = TASTE_DISLIKE_CHIPS.find(c => c.id === did);
+    return {
+      category: 'taste_dislike',
+      value: did,
+      label: found ? found.label : `Tránh: ${did}`
+    };
+  });
+
+  const serverChips: {category: string; value: string; label: string}[] = memory
     ? [
         ...(memory.health_conditions || []).map(v => ({category: 'health_conditions', value: v, label: `Sức khỏe: ${v}`})),
-        ...(memory.pregnancy ? [{category: 'pregnancy', value: 'true', label: 'Đang mang thai'}] : []),
+        ...(memory.pregnancy && !(taste.health_notes || []).includes('pregnancy')
+          ? [{category: 'pregnancy', value: 'true', label: 'Đang mang thai'}]
+          : []),
         ...(memory.allergies || []).map(v => ({
           category: 'allergies',
           value: v,
           label: `Dị ứng: ${ALLERGEN_LABELS[v] || v}`
         })),
-        ...(memory.dislikes || []).map(v => ({category: 'dislikes', value: v, label: `Tránh: ${v}`})),
+        ...(memory.dislikes || [])
+          .filter(v => !(taste.disliked_ingredients || []).includes(v))
+          .map(v => ({category: 'dislikes', value: v, label: `Tránh: ${v}`})),
         ...(memory.diet_goals || []).map(v => ({category: 'diet_goals', value: v, label: `Mục tiêu: ${v}`})),
         ...(memory.fridge_items || []).map(v => ({category: 'fridge_items', value: v, label: `Tủ lạnh: ${v}`}))
       ]
     : [];
+
+  const memoryChips = [...tasteHealthChips, ...tasteDislikeChips, ...serverChips];
 
   return (
     <>

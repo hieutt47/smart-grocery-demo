@@ -421,5 +421,19 @@ def test_taste_profile_ranking_and_general_advisory_intent(system):
             "servings": 2,
         }
         with patch("backend.app.gemini.call_gemini", return_value=dish_with_reason_llm):
-            dish_res = provider.recommend(db, "Tối nay ăn gì?", {})
+            dish_res = provider.recommend(
+                db,
+                "Tối nay ăn gì?",
+                {
+                    "taste_profile": {
+                        "persona": "maternity_care",
+                        "health_notes": ["pregnancy", "stomach"],
+                        "disliked_ingredients": ["shrimp"],
+                    }
+                },
+            )
             assert "Eat Clean" in dish_res["suggestions"][0]["reason"]
+            assert dish_res["context"]["memory"]["pregnancy"] is True
+            assert "đau dạ dày" in dish_res["context"]["memory"]["health_conditions"]
+            assert "shellfish" in dish_res["context"]["memory"]["allergies"]
+            assert dish_res["health_advisory"] and "Mẹ bầu" in dish_res["health_advisory"]

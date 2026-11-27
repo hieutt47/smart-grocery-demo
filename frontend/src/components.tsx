@@ -38,7 +38,9 @@ import {
   saveTasteProfile,
   subscribeTaste,
   TASTE_DISLIKE_CHIPS,
+  TASTE_HEALTH_CHIPS,
   TASTE_LIKE_CHIPS,
+  type HealthNoteId,
   type PersonaId,
   type TasteProfile
 } from './taste';
@@ -323,7 +325,7 @@ export function TasteOnboardingModal() {
   const {notify} = useStore();
   const [taste, setTaste] = useState<TasteProfile>(getTasteProfile);
   const [manualOpen, setManualOpen] = useState(false);
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
   useEffect(() => subscribeTaste(setTaste), []);
 
@@ -341,10 +343,39 @@ export function TasteOnboardingModal() {
   if (!isOpen) return null;
 
   function selectPersona(id: PersonaId) {
+    setTaste(prev => {
+      const nextPersona = prev.persona === id ? null : id;
+      let nextHealth = [...(prev.health_notes || [])];
+      if (nextPersona === 'maternity_care' && !nextHealth.includes('pregnancy')) {
+        nextHealth.push('pregnancy');
+      } else if (prev.persona === 'maternity_care' && nextPersona !== 'maternity_care') {
+        nextHealth = nextHealth.filter(h => h !== 'pregnancy');
+      }
+      return {
+        ...prev,
+        persona: nextPersona,
+        health_notes: nextHealth
+      };
+    });
+  }
+
+  function toggleHealthNote(id: HealthNoteId) {
+    setTaste(prev => {
+      const list = prev.health_notes || [];
+      const exists = list.includes(id);
+      return {
+        ...prev,
+        health_notes: exists ? list.filter(h => h !== id) : [...list, id]
+      };
+    });
+  }
+
+  function clearHealthAndNext() {
     setTaste(prev => ({
       ...prev,
-      persona: prev.persona === id ? null : id
+      health_notes: []
     }));
+    setStep(3);
   }
 
   function toggleLikeTag(tag: string) {
@@ -381,22 +412,26 @@ export function TasteOnboardingModal() {
     setTaste(next);
     saveTasteProfile(next);
     setManualOpen(false);
-    notify('Đã cá nhân hóa thực đơn theo gu của bạn!');
+    notify('Đã cá nhân hóa thực đơn & trí nhớ AI theo gu của bạn!');
   }
 
   const stepHeading =
     step === 1
-      ? 'Bạn thuộc nhóm ăn uống nào?'
+      ? 'Bạn đang tìm bữa ăn cho đối tượng nào?'
       : step === 2
-        ? 'Vote các món bạn khoái khẩu nhất'
-        : 'Có món nào bạn KHÔNG ăn hoặc muốn tránh?';
+        ? 'Bạn có lưu ý sức khỏe đặc biệt nào không?'
+        : step === 3
+          ? 'Vote các món bạn khoái khẩu nhất'
+          : 'Có món nào bạn dị ứng hoặc KHÔNG ăn?';
 
   const stepSub =
     step === 1
-      ? 'Chọn 1 phong cách gần nhất với nhịp sống của bạn để Bữa Nhà ưu tiên món phù hợp.'
+      ? 'Chọn 1 nhóm phù hợp nhất (Văn phòng, Eat Clean, Tiết kiệm, Mẹ bầu, Trẻ nhỏ/Người già...) để Bữa Nhà tối ưu thực đơn.'
       : step === 2
-        ? 'Chọn thoải mái các nhóm nguyên liệu và kiểu món bạn hay thèm (có thể chọn nhiều).'
-        : 'Hệ thống và Trợ lý AI sẽ tự động lọc bỏ các món chứa nguyên liệu này khỏi thực đơn.';
+        ? 'Trợ lý AI và hệ thống sẽ tự động ghi nhớ thể trạng (Thai kỳ, Dạ dày, Tiểu đường, Gout...) để ưu tiên món lành tính & kèm lưu ý dinh dưỡng.'
+        : step === 3
+          ? 'Chọn thoải mái các nhóm nguyên liệu và kiểu món bạn hay thèm (có thể chọn nhiều).'
+          : 'Hệ thống và Trợ lý AI sẽ tự động lọc sạch 100% các món chứa nguyên liệu này khỏi thực đơn của bạn.';
 
   return (
     <div
@@ -409,10 +444,10 @@ export function TasteOnboardingModal() {
         <div className="taste-onboarding-top">
           <div className="taste-step-meta">
             <span className="eyebrow">✨ Làm quen 1 lần duy nhất</span>
-            <span className="taste-step-counter">Câu {step} / 3</span>
+            <span className="taste-step-counter">Câu {step} / 4</span>
           </div>
-          <div className="taste-step-bar" aria-hidden="true">
-            {[1, 2, 3].map(s => (
+          <div className="taste-step-bar taste-step-bar-4" aria-hidden="true">
+            {[1, 2, 3, 4].map(s => (
               <span key={s} className={`taste-step-segment ${s <= step ? 'active' : ''}`} />
             ))}
           </div>
@@ -440,7 +475,42 @@ export function TasteOnboardingModal() {
           )}
 
           {step === 2 && (
-            <div className="taste-topic-grid" role="group" aria-label="Câu 2: Món khoái khẩu">
+            <div className="taste-q-block">
+              <div className="taste-health-list" role="group" aria-label="Câu 2: Lưu ý sức khỏe đặc biệt">
+                {TASTE_HEALTH_CHIPS.map(c => {
+                  const active = (taste.health_notes || []).includes(c.id);
+                  return (
+                    <button
+                      type="button"
+                      key={c.id}
+                      className={`taste-health-card ${active ? 'active' : ''}`}
+                      aria-pressed={active}
+                      onClick={() => toggleHealthNote(c.id)}
+                    >
+                      <div className="taste-health-copy">
+                        <strong>{c.label}</strong>
+                        <small>{c.sub}</small>
+                      </div>
+                      {active && <Check size={16} aria-hidden="true" />}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  className={`taste-health-card ${(taste.health_notes || []).length === 0 ? 'active' : ''}`}
+                  onClick={clearHealthAndNext}
+                >
+                  <div className="taste-health-copy">
+                    <strong>✅ Bình thường, không có lưu ý sức khỏe đặc biệt</strong>
+                    <small>Ăn uống đa dạng, không cần kiêng cữ bệnh lý</small>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="taste-topic-grid" role="group" aria-label="Câu 3: Món khoái khẩu">
               {TASTE_LIKE_CHIPS.map(c => {
                 const active = taste.liked_tags.includes(c.id);
                 return (
@@ -459,9 +529,9 @@ export function TasteOnboardingModal() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div className="taste-q-block">
-              <div className="taste-topic-grid" role="group" aria-label="Câu 3: Nguyên liệu muốn tránh">
+              <div className="taste-topic-grid" role="group" aria-label="Câu 4: Nguyên liệu muốn tránh hoặc dị ứng">
                 {TASTE_DISLIKE_CHIPS.map(c => {
                   const active = taste.disliked_ingredients.includes(c.id);
                   return (
@@ -479,7 +549,7 @@ export function TasteOnboardingModal() {
                 })}
               </div>
               <p className="small muted taste-step-hint">
-                💡 Nếu bạn ăn được tất cả mọi thứ, cứ để trống và bấm <strong>Hoàn tất</strong> ngay bên dưới nhé!
+                💡 Nếu bạn không dị ứng hay kiêng nguyên liệu nào, chỉ cần bấm <strong>Hoàn tất</strong> ngay bên dưới!
               </p>
             </div>
           )}
@@ -494,17 +564,17 @@ export function TasteOnboardingModal() {
             <button
               type="button"
               className="button secondary small-button"
-              onClick={() => setStep(s => (s === 3 ? 2 : 1))}
+              onClick={() => setStep(s => (s === 4 ? 3 : s === 3 ? 2 : 1))}
             >
               <span>← Quay lại</span>
             </button>
           )}
 
-          {step < 3 ? (
+          {step < 4 ? (
             <button
               type="button"
               className="button primary small-button"
-              onClick={() => setStep(s => (s === 1 ? 2 : 3))}
+              onClick={() => setStep(s => (s === 1 ? 2 : s === 2 ? 3 : 4))}
             >
               <span>Tiếp theo</span>
               <ArrowRight size={15} aria-hidden="true" />

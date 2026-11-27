@@ -43,6 +43,7 @@ export function Home() {
   const allRecipes = recipes.data || [];
   const hasPersonalization =
     Boolean(taste.persona) ||
+    (taste.health_notes && taste.health_notes.length > 0) ||
     taste.liked_tags.length > 0 ||
     taste.disliked_ingredients.length > 0;
   const rankedForYou = rankRecipesForYou(allRecipes, taste);

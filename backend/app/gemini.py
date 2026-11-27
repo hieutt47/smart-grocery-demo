@@ -55,8 +55,18 @@ ALLERGEN_LABELS: dict[str, str] = {
 PERSONA_DESCRIPTIONS: dict[str, str] = {
     "office_busy": "Dân văn phòng bận rộn (ưu tiên nấu siêu tốc <= 15 phút, cơm hộp mang đi làm, trưa ăn ngoài tỉnh táo)",
     "fit_eatclean": "Eat Clean & Giữ dáng / Tập luyện (ưu tiên giàu đạm, ít dầu mỡ, kiểm soát <= 380 kcal/phần)",
-    "student_saver": "Sống 1 mình / Ăn ngon tiết kiệm (ưu tiên chi phí < 50.000đ, nguyên liệu tối giản, dễ nấu 1-2 người)",
-    "family_care": "Chăm sóc Gia đình & Sức khỏe (ưu tiên mâm cơm đủ chất, hấp/luộc thanh đạm, ít muối cho người lớn tuổi/tim mạch/bà bầu)",
+    "student_saver": "Sinh viên & Ăn ngon tiết kiệm (ưu tiên chi phí < 50.000đ, nguyên liệu tối giản, dễ nấu 1-2 người)",
+    "maternity_care": "Mẹ bầu & Chăm sóc sau sinh (ưu tiên món nấu chín kỹ, giàu sắt, axit folic, canxi, đạm lành, tránh cay nóng)",
+    "kid_elder_family": "Gia đình có Trẻ nhỏ / Người lớn tuổi (ưu tiên món mềm, canh/hấp/cháo thanh mát, không cay, dễ tiêu)",
+    "health_recovery": "Chế độ ăn dưỡng sức / Thanh đạm (ưu tiên món nhẹ bụng, hấp/luộc/canh, ít dầu mỡ và gia vị gắt)",
+    "family_care": "Chăm sóc Gia đình & Sức khỏe (ưu tiên mâm cơm đủ chất, hấp/luộc thanh đạm, ít muối)",
+}
+
+HEALTH_NOTE_TO_CONDITION: dict[str, str] = {
+    "stomach": "đau dạ dày",
+    "diabetes": "tiểu đường",
+    "cardio_bp": "huyết áp / mỡ máu",
+    "gout": "gout",
 }
 
 SYSTEM_INSTRUCTION = """Bạn là trợ lý tư vấn ăn uống thông minh và linh hoạt của Bữa Nhà — chuyên đồng hành cùng dân văn phòng trẻ và gia đình Việt.
@@ -482,13 +492,65 @@ def extract_json(raw: str) -> dict[str, Any]:
     return json.loads(text)
 
 
+def sync_taste_into_memory(
+    memory: dict[str, Any] | None, taste: dict[str, Any] | None
+) -> tuple[dict[str, Any], set[str]]:
+    """Sync onboarding persona, health_notes, and dislikes/allergies into persistent AI memory."""
+    mem = normalize_memory(memory)
+    extra_excluded: set[str] = set()
+    if not isinstance(taste, dict):
+        return mem, extra_excluded
+
+    persona = str(taste.get("persona") or "")
+    health_notes = {str(h) for h in (taste.get("health_notes") or []) if str(h).strip()}
+    disliked = {str(x) for x in (taste.get("disliked_ingredients") or []) if str(x).strip()}
+
+    if persona == "maternity_care" or "pregnancy" in health_notes:
+        mem["pregnancy"] = True
+
+    for note_id, cond_label in HEALTH_NOTE_TO_CONDITION.items():
+        if note_id in health_notes and cond_label not in mem["health_conditions"]:
+            mem["health_conditions"].append(cond_label)
+
+    if "gout" in health_notes:
+        extra_excluded.update(["shrimp", "beef"])
+
+    if "shrimp" in disliked:
+        if "shellfish" not in mem["allergies"]:
+            mem["allergies"].append("shellfish")
+        extra_excluded.add("shrimp")
+    if "eggs" in disliked:
+        if "egg" not in mem["allergies"]:
+            mem["allergies"].append("egg")
+        extra_excluded.add("eggs")
+    if "tofu" in disliked:
+        if "soy" not in mem["allergies"]:
+            mem["allergies"].append("soy")
+        extra_excluded.update(["tofu", "soy-sauce"])
+    if "fish" in disliked:
+        extra_excluded.update(["fish", "basa-fish"])
+    if "pork" in disliked:
+        extra_excluded.add("pork")
+    if "spicy" in disliked:
+        extra_excluded.add("chili")
+
+    for d in sorted(disliked):
+        if d not in mem["dislikes"]:
+            mem["dislikes"].append(d)
+
+    return mem, extra_excluded
+
+
 def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int = 25) -> str:
     """SQL Pre-filter + TikTok Behavioral Affinity Scoring over 60+ recipes."""
     text = normalize(content)
     exclusions = set(str(x) for x in ctx.get("excluded", []))
-    memory = normalize_memory(ctx.get("memory"))
     taste = ctx.get("taste_profile") if isinstance(ctx.get("taste_profile"), dict) else {}
+    memory, taste_excluded = sync_taste_into_memory(ctx.get("memory"), taste)
     persona = str(taste.get("persona") or "")
+    health_notes = {str(h) for h in (taste.get("health_notes") or []) if str(h).strip()}
+    if persona == "maternity_care" or memory.get("pregnancy"):
+        health_notes.add("pregnancy")
     liked_tags = {normalize(str(t)) for t in (taste.get("liked_tags") or []) if str(t).strip()}
     disliked_ings = {str(x) for x in (taste.get("disliked_ingredients") or []) if str(x).strip()}
     tag_scores = taste.get("tag_scores") if isinstance(taste.get("tag_scores"), dict) else {}
@@ -496,6 +558,7 @@ def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int =
     allergen_set = set(memory["allergies"])
     exclusions.update(memory["dislikes"])
     exclusions.update(disliked_ings)
+    exclusions.update(taste_excluded)
     if "fish" in exclusions or "basa-fish" in exclusions:
         allergen_set.add("fish")
 
@@ -534,17 +597,40 @@ def build_dynamic_candidates(db, content: str, ctx: dict[str, Any], limit: int =
         if norm_name in text or any(nt in text for nt in norm_tags):
             score += 35
 
-        # Persona-based affinity boost
+        # Persona & Health condition affinity boost
+        if "pregnancy" in health_notes and (
+            any(t in norm_tags for t in ("bo", "trung", "canh", "rau"))
+            or any(w in norm_name for w in ("bong cai", "bi do", "hap", "chao", "sup"))
+        ):
+            score += 45
+        if "stomach" in health_notes:
+            if any(w in norm_name for w in ("chua", "chien", "ot", "cay")):
+                score -= 35
+            elif "canh" in norm_tags or any(w in norm_name for w in ("hap", "luoc", "chao", "sup")):
+                score += 40
+        if "diabetes" in health_notes:
+            if "mi" in norm_tags or "com chien" in norm_name:
+                score -= 30
+            elif "eat-clean" in r.tags or "rau" in norm_tags or "dau" in norm_tags:
+                score += 40
+        if "cardio_bp" in health_notes:
+            if "kho" in norm_name or "chien" in norm_name or "heo" in norm_tags:
+                score -= 25
+            elif "ca" in norm_tags or "dau" in norm_tags or "rau" in norm_tags or "eat-clean" in r.tags:
+                score += 40
+        if "gout" in health_notes and any(t in norm_tags for t in ("trung", "dau", "rau", "canh")):
+            score += 40
+
         if persona == "office_busy" and (r.minutes <= 15 or "nhanh" in norm_tags):
             score += 35
         elif persona == "fit_eatclean" and ("eat-clean" in r.tags or "rau" in norm_tags):
             score += 40
         elif persona == "student_saver" and est_total <= 48000:
             score += 40
-        elif persona == "family_care" and (
-            "canh" in norm_tags or any(w in norm_name for w in ("hap", "luoc", "ham"))
+        elif persona in {"family_care", "kid_elder_family", "health_recovery"} and (
+            "canh" in norm_tags or any(w in norm_name for w in ("hap", "luoc", "ham", "chao", "sup"))
         ):
-            score += 35
+            score += 38
 
         # Explicit liked tags & implicit behavioral tag_scores boost
         for nt in norm_tags:
@@ -674,6 +760,7 @@ def call_gemini(
     persona_desc = PERSONA_DESCRIPTIONS.get(persona_key, "Chưa chọn chân dung cố định")
     taste_summary = {
         "persona": persona_desc,
+        "health_notes": taste.get("health_notes") or [],
         "liked_tags": taste.get("liked_tags") or [],
         "disliked_ingredients": taste.get("disliked_ingredients") or [],
         "top_behavior_tags": sorted(
@@ -855,15 +942,19 @@ class GeminiProvider:
     def recommend(self, db, content: str, context: dict) -> dict:
         text = normalize(content)
         raw_history = context.get("history", [])
-        memory = normalize_memory(context.get("memory"))
+        memory, taste_excluded = sync_taste_into_memory(
+            context.get("memory"),
+            context.get("taste_profile") if isinstance(context.get("taste_profile"), dict) else None,
+        )
+        initial_excluded = sorted(set(context.get("excluded", [])) | taste_excluded | set(memory["dislikes"]))
         ctx = {
             "servings": 2,
             "budget": None,
             "minutes": None,
-            "excluded": [],
+            "excluded": initial_excluded,
             "shown": [],
             "memory": memory,
-            **{k: v for k, v in context.items() if k not in {"history", "memory"}},
+            **{k: v for k, v in context.items() if k not in {"history", "memory", "excluded"}},
         }
 
         detected_allergens, untracked_allergy = _detect_allergens(text)
@@ -893,12 +984,27 @@ class GeminiProvider:
         )
         if not llm_data:
             res = self.fallback.recommend(db, content, {k: v for k, v in ctx.items() if k != "history"})
+            if not res.get("health_advisory"):
+                if memory.get("pregnancy"):
+                    res["health_advisory"] = (
+                        "Chế độ Mẹ bầu & Sau sinh: Đã ưu tiên món nấu chín kỹ, giàu sắt, canxi và đạm lành; "
+                        "hạn chế đồ cay nóng/tái sống. Thông tin mang tính tham khảo dinh dưỡng."
+                    )
+                elif memory.get("health_conditions"):
+                    cond_str = ", ".join(memory["health_conditions"])
+                    res["health_advisory"] = (
+                        f"Chế độ chăm sóc sức khỏe ({cond_str}): Đã ưu tiên món thanh nhẹ, phù hợp thể trạng. "
+                        "Thông tin chỉ mang tính tham khảo dinh dưỡng, không thay thế chỉ định y khoa."
+                    )
             if LAST_STATUS.get("error"):
                 res["gemini_error"] = LAST_STATUS["error"]
             return res
 
         # Merge persistent memory updates returned by Gemini
         memory = merge_memory(memory, llm_data.get("memory_updates"))
+        memory, taste_excluded = sync_taste_into_memory(
+            memory, ctx.get("taste_profile") if isinstance(ctx.get("taste_profile"), dict) else None
+        )
         if detected_allergens:
             memory["allergies"] = list(dict.fromkeys(memory["allergies"] + detected_allergens))
         ctx["memory"] = memory
@@ -959,7 +1065,18 @@ class GeminiProvider:
         ai_message = str(llm_data.get("message", "")).strip()
         raw_advisory = llm_data.get("health_advisory")
         health_advisory = str(raw_advisory).strip() if raw_advisory else None
-        if blocked_allergens and not health_advisory:
+        if not health_advisory and memory.get("pregnancy"):
+            health_advisory = (
+                "Chế độ Mẹ bầu & Sau sinh: Đã ưu tiên món nấu chín kỹ, giàu sắt, canxi và đạm lành; "
+                "hạn chế đồ cay nóng/tái sống. Thông tin mang tính tham khảo dinh dưỡng."
+            )
+        elif not health_advisory and memory.get("health_conditions"):
+            cond_str = ", ".join(memory["health_conditions"])
+            health_advisory = (
+                f"Chế độ chăm sóc sức khỏe ({cond_str}): Đã ưu tiên món thanh nhẹ, phù hợp thể trạng. "
+                "Thông tin chỉ mang tính tham khảo dinh dưỡng, không thay thế chỉ định y khoa."
+            )
+        elif blocked_allergens and not health_advisory:
             names = ", ".join(ALLERGEN_LABELS.get(a, a) for a in sorted(blocked_allergens))
             health_advisory = f"Đã tự động loại bỏ các món chứa: {names}. Vui lòng kiểm tra kỹ nhãn sản phẩm trước khi chế biến."
 
