@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react';
-import {ArrowRight, Check, ChefHat, Clock3, Dices, Leaf, Share2, SlidersHorizontal, Sparkles, Users, UtensilsCrossed} from 'lucide-react';
+import {ArrowRight, ChefHat, Clock3, Dices, Leaf, Share2, SlidersHorizontal, Sparkles, Users, UtensilsCrossed} from 'lucide-react';
 import {Link} from 'react-router-dom';
 import {money, trackEvent} from '../api';
 import {LoadState, RecipeCard} from '../components';
@@ -11,11 +11,7 @@ import {
   PERSONA_DEFINITIONS,
   rankRecipesForYou,
   recordTasteSignal,
-  saveTasteProfile,
   subscribeTaste,
-  TASTE_DISLIKE_CHIPS,
-  TASTE_LIKE_CHIPS,
-  type PersonaId,
   type TasteProfile
 } from '../taste';
 import type {Recipe} from '../types';
@@ -34,9 +30,8 @@ const QUICK_MOODS = [
 
 export function Home() {
   const recipes = useResource<Recipe[]>('/recipes');
-  const {shareItem, notify} = useStore();
+  const {shareItem} = useStore();
   const [taste, setTaste] = useState<TasteProfile>(getTasteProfile);
-  const [editingTaste, setEditingTaste] = useState(false);
   const [pickerMode, setPickerMode] = useState<'lunch' | 'cook'>('lunch');
   const [groupMode, setGroupMode] = useState(false);
   const [randomRecipe, setRandomRecipe] = useState<Recipe | null>(null);
@@ -54,48 +49,6 @@ export function Home() {
   const personalizedTop = rankedForYou.slice(0, 6);
   const activePersona = PERSONA_DEFINITIONS.find(p => p.id === taste.persona);
   const displayedRecipe = randomRecipe || (hasPersonalization ? personalizedTop[0]?.recipe : allRecipes[0]) || null;
-
-  function selectPersona(id: PersonaId) {
-    const next: TasteProfile = {
-      ...taste,
-      persona: taste.persona === id ? null : id,
-      onboarded: true
-    };
-    setTaste(next);
-    saveTasteProfile(next);
-  }
-
-  function toggleLikeTag(tag: string) {
-    const exists = taste.liked_tags.includes(tag);
-    const next: TasteProfile = {
-      ...taste,
-      liked_tags: exists ? taste.liked_tags.filter(t => t !== tag) : [...taste.liked_tags, tag],
-      onboarded: true
-    };
-    setTaste(next);
-    saveTasteProfile(next);
-  }
-
-  function toggleDislike(ingId: string) {
-    const exists = taste.disliked_ingredients.includes(ingId);
-    const next: TasteProfile = {
-      ...taste,
-      disliked_ingredients: exists
-        ? taste.disliked_ingredients.filter(i => i !== ingId)
-        : [...taste.disliked_ingredients, ingId],
-      onboarded: true
-    };
-    setTaste(next);
-    saveTasteProfile(next);
-  }
-
-  function finishOnboarding() {
-    const next: TasteProfile = {...taste, onboarded: true};
-    setTaste(next);
-    saveTasteProfile(next);
-    setEditingTaste(false);
-    notify('Đã cập nhật đề xuất theo gu của bạn!');
-  }
 
   function pickRandom() {
     trackEvent(groupMode ? 'group_pick' : 'random_pick', pickerMode);
@@ -134,83 +87,6 @@ export function Home() {
             </Link>
           </div>
         </div>
-      </section>
-
-      {/* TikTok-style Cold-Start Persona & Taste Onboarding */}
-      <section className="taste-onboard-card" aria-labelledby="taste-title">
-        <div className="taste-onboard-header">
-          <div>
-            <span className="eyebrow">🎯 Cá nhân hóa theo đối tượng</span>
-            <h2 id="taste-title">
-              {activePersona
-                ? `Đang đề xuất cho: ${activePersona.emoji} ${activePersona.title}`
-                : 'Chọn nhanh gu ăn uống của bạn (3 giây)'}
-            </h2>
-          </div>
-          <button
-            type="button"
-            className="icon-chip-btn"
-            aria-expanded={editingTaste}
-            onClick={() => setEditingTaste(v => !v)}
-          >
-            <SlidersHorizontal size={14} aria-hidden="true" />
-            <span>{editingTaste ? 'Thu gọn' : 'Tùy chỉnh khẩu vị'}</span>
-          </button>
-        </div>
-
-        <div className="persona-grid" role="group" aria-label="Chọn đối tượng của bạn">
-          {PERSONA_DEFINITIONS.map(p => (
-            <button
-              type="button"
-              key={p.id}
-              className={`persona-btn ${taste.persona === p.id ? 'active' : ''}`}
-              aria-pressed={taste.persona === p.id}
-              onClick={() => selectPersona(p.id)}
-            >
-              <span className="persona-btn-emoji" aria-hidden="true">{p.emoji}</span>
-              <strong>{p.title}</strong>
-              <small>{p.sub}</small>
-            </button>
-          ))}
-        </div>
-
-        {editingTaste && (
-          <>
-            <div className="taste-chips-group" role="group" aria-label="Món khoái khẩu">
-              <span className="taste-chips-label">Khoái khẩu:</span>
-              {TASTE_LIKE_CHIPS.map(c => (
-                <button
-                  type="button"
-                  key={c.id}
-                  className={`taste-chip-btn ${taste.liked_tags.includes(c.id) ? 'liked' : ''}`}
-                  aria-pressed={taste.liked_tags.includes(c.id)}
-                  onClick={() => toggleLikeTag(c.id)}
-                >
-                  <span>{c.label}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="taste-chips-group" role="group" aria-label="Nguyên liệu muốn tránh">
-              <span className="taste-chips-label">Muốn né:</span>
-              {TASTE_DISLIKE_CHIPS.map(c => (
-                <button
-                  type="button"
-                  key={c.id}
-                  className={`taste-chip-btn ${taste.disliked_ingredients.includes(c.id) ? 'disliked' : ''}`}
-                  aria-pressed={taste.disliked_ingredients.includes(c.id)}
-                  onClick={() => toggleDislike(c.id)}
-                >
-                  <span>{c.label}</span>
-                </button>
-              ))}
-              <button type="button" className="button primary small-button" onClick={finishOnboarding}>
-                <Check size={14} aria-hidden="true" />
-                <span>Lưu gu</span>
-              </button>
-            </div>
-          </>
-        )}
       </section>
 
       <section className="section home-featured" aria-labelledby="recipes-title">

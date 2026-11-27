@@ -7,7 +7,13 @@ import {LoadState, PageTitle, PantryModal} from '../components';
 import {OFFICE_LUNCH_OPTIONS} from '../nutrition';
 import {getPantryStaples, subscribePantry} from '../pantry';
 import {RecipePhotoCredit, RecipeVisual} from '../recipe-art';
-import {getTasteProfile} from '../taste';
+import {
+  getTasteProfile,
+  openTasteOnboarding,
+  PERSONA_DEFINITIONS,
+  subscribeTaste,
+  type TasteProfile
+} from '../taste';
 import type {ActiveMemory, AssistantResult, ChatMessage, Conversation, Recipe} from '../types';
 
 const ALLERGEN_LABELS: Record<string, string> = {
@@ -63,11 +69,15 @@ export function Assistant() {
   }
   const [lunchSeed, setLunchSeed] = useState(0);
   const [memory, setMemory] = useState<ActiveMemory | null>(null);
+  const [taste, setTaste] = useState<TasteProfile>(getTasteProfile);
   const {ready, isSaved, toggleSave, shareItem} = useStore();
   const bottom = useRef<HTMLDivElement>(null);
   const sentQueryRef = useRef<string | null>(null);
 
   useEffect(() => subscribePantry(setPantryIds), []);
+  useEffect(() => subscribeTaste(setTaste), []);
+
+  const activePersona = PERSONA_DEFINITIONS.find(p => p.id === taste.persona);
 
   useEffect(() => {
     if (resource.data) {
@@ -322,6 +332,14 @@ export function Assistant() {
               <strong>Cùng lên thực đơn gia đình</strong>
             </div>
             <div className="chat-header-actions">
+              <button
+                type="button"
+                className="chip pantry-pill-btn"
+                onClick={openTasteOnboarding}
+                title="Chọn hoặc đổi gu ăn uống cá nhân"
+              >
+                <span>{activePersona ? `${activePersona.emoji} ${activePersona.title}` : '🎯 Gu ăn uống'}</span>
+              </button>
               <button
                 type="button"
                 className="chip pantry-pill-btn"

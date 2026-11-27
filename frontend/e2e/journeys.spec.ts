@@ -1,5 +1,24 @@
 import {test, expect} from '@playwright/test';
 
+test.beforeEach(async ({page}, testInfo) => {
+  if (testInfo.title.includes('personalization onboarding')) return;
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('bua_nha_taste_profile_v2')) {
+      localStorage.setItem(
+        'bua_nha_taste_profile_v2',
+        JSON.stringify({
+          persona: null,
+          liked_tags: [],
+          disliked_ingredients: [],
+          tag_scores: {},
+          recent_viewed: [],
+          onboarded: true
+        })
+      );
+    }
+  });
+});
+
 test('A: home quick moods, random picker, recipe search and saved collection', async ({page}) => {
   await page.goto('/');
   await expect(page.getByRole('heading', {name: /Hôm nay ăn gì/})).toBeVisible();
@@ -222,8 +241,22 @@ test('mobile layout, redirect legacy routes, and session reset', async ({page, c
 
 test('personalization onboarding ranks recipes for selected persona', async ({page}) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', {name: 'Món quen dễ bắt đầu'})).toBeVisible();
-  await page.getByRole('button', {name: /Eat Clean & Giữ dáng/}).click();
+  // 1-time onboarding survey modal pops up automatically on first visit
+  const modal = page.getByRole('dialog', {name: /Bạn thích ăn uống theo gu nào/});
+  await expect(modal).toBeVisible();
+
+  // Vote on Q1 (Persona), Q2 (Liked dishes), Q3 (Disliked ingredients)
+  await modal.getByRole('button', {name: /Eat Clean & Giữ dáng/}).click();
+  await modal.getByRole('button', {name: /Mê thịt gà/}).click();
+  await modal.getByRole('button', {name: /Không thích cá/}).click();
+  await modal.getByRole('button', {name: 'Hoàn tất & Xem món hợp gu'}).click();
+
+  await expect(modal).toHaveCount(0);
   await expect(page.getByRole('heading', {name: /Đề xuất chuẩn gu Eat Clean & Giữ dáng/})).toBeVisible();
   await expect(page.locator('.recipe-match-pill').first()).toBeVisible();
+
+  // Reloading does NOT show the modal again (appears only once)
+  await page.reload();
+  await expect(page.getByRole('dialog', {name: /Bạn thích ăn uống theo gu nào/})).toHaveCount(0);
+  await expect(page.getByRole('heading', {name: /Đề xuất chuẩn gu Eat Clean & Giữ dáng/})).toBeVisible();
 });

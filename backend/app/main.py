@@ -637,7 +637,10 @@ def create_app(database_url=None, clock=None):
         if path.startswith("api/"):
             raise DomainError("NOT_FOUND", "API không tồn tại.", 404)
         if (static_dir / "index.html").exists():
-            return FileResponse(static_dir / "index.html")
+            return FileResponse(
+                static_dir / "index.html",
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+            )
         return JSONResponse({"message": "Backend ready. Build the frontend or start Vite on port 5173."})
 
     return app

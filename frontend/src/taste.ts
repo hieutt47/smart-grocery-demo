@@ -12,7 +12,7 @@ export interface TasteProfile {
   onboarded: boolean;
 }
 
-const TASTE_KEY = 'bua_nha_taste_profile';
+const TASTE_KEY = 'bua_nha_taste_profile_v2';
 
 export const PERSONA_DEFINITIONS: {
   id: PersonaId;
@@ -57,7 +57,9 @@ export const TASTE_LIKE_CHIPS: {id: string; label: string}[] = [
   {id: 'tôm', label: '🦐 Tôm & Hải sản'},
   {id: 'trứng', label: '🥚 Trứng & Đậu hũ'},
   {id: 'rau', label: '🥬 Nhiều rau xanh'},
-  {id: 'mì', label: '🍜 Mì / Bún / Miến'}
+  {id: 'mì', label: '🍜 Mì / Bún / Miến'},
+  {id: 'canh', label: '🍲 Canh thanh mát'},
+  {id: 'món mặn', label: '🥘 Món đậm đà đưa cơm'}
 ];
 
 export const TASTE_DISLIKE_CHIPS: {id: string; label: string; tagMatch: string}[] = [
@@ -108,6 +110,10 @@ export function subscribeTaste(callback: (profile: TasteProfile) => void): () =>
   const handler = () => callback(getTasteProfile());
   window.addEventListener('taste-updated', handler);
   return () => window.removeEventListener('taste-updated', handler);
+}
+
+export function openTasteOnboarding(): void {
+  window.dispatchEvent(new Event('open-taste-onboarding'));
 }
 
 const ACTION_WEIGHTS: Record<'view' | 'save' | 'copy' | 'share' | 'skip', number> = {

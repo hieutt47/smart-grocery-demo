@@ -31,7 +31,17 @@ import {money} from './api';
 import {useStore} from './context';
 import {getRecipeNutrition} from './nutrition';
 import {getPantryStaples, savePantryStaples, STAPLE_DEFINITIONS} from './pantry';
-import {recordTasteSignal} from './taste';
+import {
+  getTasteProfile,
+  PERSONA_DEFINITIONS,
+  recordTasteSignal,
+  saveTasteProfile,
+  subscribeTaste,
+  TASTE_DISLIKE_CHIPS,
+  TASTE_LIKE_CHIPS,
+  type PersonaId,
+  type TasteProfile
+} from './taste';
 import {RecipePhotoCredit, RecipeVisual} from './recipe-art';
 import {
   ChiliIcon,
@@ -302,6 +312,154 @@ export function PantryModal({open, onClose}: {open: boolean; onClose: () => void
           <button type="button" className="button primary small-button" onClick={onClose}>
             <span>Đã ghi nhớ ({staples.length} món)</span>
             <Check size={15} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TasteOnboardingModal() {
+  const {notify} = useStore();
+  const [taste, setTaste] = useState<TasteProfile>(getTasteProfile);
+  const [manualOpen, setManualOpen] = useState(false);
+
+  useEffect(() => subscribeTaste(setTaste), []);
+
+  useEffect(() => {
+    const handler = () => {
+      setTaste(getTasteProfile());
+      setManualOpen(true);
+    };
+    window.addEventListener('open-taste-onboarding', handler);
+    return () => window.removeEventListener('open-taste-onboarding', handler);
+  }, []);
+
+  const isOpen = !taste.onboarded || manualOpen;
+  if (!isOpen) return null;
+
+  function selectPersona(id: PersonaId) {
+    setTaste(prev => ({
+      ...prev,
+      persona: prev.persona === id ? null : id
+    }));
+  }
+
+  function toggleLikeTag(tag: string) {
+    setTaste(prev => {
+      const exists = prev.liked_tags.includes(tag);
+      return {
+        ...prev,
+        liked_tags: exists ? prev.liked_tags.filter(t => t !== tag) : [...prev.liked_tags, tag]
+      };
+    });
+  }
+
+  function toggleDislike(ingId: string) {
+    setTaste(prev => {
+      const exists = prev.disliked_ingredients.includes(ingId);
+      return {
+        ...prev,
+        disliked_ingredients: exists
+          ? prev.disliked_ingredients.filter(i => i !== ingId)
+          : [...prev.disliked_ingredients, ingId]
+      };
+    });
+  }
+
+  function skipOnboarding() {
+    const next: TasteProfile = {...taste, onboarded: true};
+    setTaste(next);
+    saveTasteProfile(next);
+    setManualOpen(false);
+  }
+
+  function completeOnboarding() {
+    const next: TasteProfile = {...taste, onboarded: true};
+    setTaste(next);
+    saveTasteProfile(next);
+    setManualOpen(false);
+    notify('Đã cá nhân hóa thực đơn theo gu của bạn!');
+  }
+
+  return (
+    <div
+      className="modal-backdrop taste-onboarding-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="taste-onboarding-title"
+    >
+      <div className="taste-onboarding-modal">
+        <div className="taste-onboarding-top">
+          <span className="eyebrow">✨ Cá nhân hóa thực đơn · Chỉ hỏi 1 lần duy nhất</span>
+          <h2 id="taste-onboarding-title">Bạn thích ăn uống theo gu nào?</h2>
+          <p className="small muted">
+            Vote nhanh 3 câu dưới đây để Bữa Nhà và Trợ lý AI lọc đúng những món hợp nhất với bạn.
+          </p>
+        </div>
+
+        <div className="taste-onboarding-body">
+          <div className="taste-q-block">
+            <h3 className="taste-q-title">Câu 1: Bạn thuộc nhóm đối tượng nào?</h3>
+            <div className="persona-grid" role="group" aria-label="Câu 1: Bạn thuộc nhóm đối tượng nào?">
+              {PERSONA_DEFINITIONS.map(p => (
+                <button
+                  type="button"
+                  key={p.id}
+                  className={`persona-btn ${taste.persona === p.id ? 'active' : ''}`}
+                  aria-pressed={taste.persona === p.id}
+                  onClick={() => selectPersona(p.id)}
+                >
+                  <span className="persona-btn-emoji" aria-hidden="true">{p.emoji}</span>
+                  <strong>{p.title}</strong>
+                  <small>{p.sub}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="taste-q-block">
+            <h3 className="taste-q-title">Câu 2: Vote các món / nguyên liệu bạn thích ăn (Chọn nhiều):</h3>
+            <div className="taste-chips-group" role="group" aria-label="Câu 2: Món khoái khẩu">
+              {TASTE_LIKE_CHIPS.map(c => (
+                <button
+                  type="button"
+                  key={c.id}
+                  className={`taste-chip-btn ${taste.liked_tags.includes(c.id) ? 'liked' : ''}`}
+                  aria-pressed={taste.liked_tags.includes(c.id)}
+                  onClick={() => toggleLikeTag(c.id)}
+                >
+                  <span>{c.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="taste-q-block">
+            <h3 className="taste-q-title">Câu 3: Có món nào bạn KHÔNG ăn hoặc muốn tránh không?</h3>
+            <div className="taste-chips-group" role="group" aria-label="Câu 3: Nguyên liệu muốn tránh">
+              {TASTE_DISLIKE_CHIPS.map(c => (
+                <button
+                  type="button"
+                  key={c.id}
+                  className={`taste-chip-btn ${taste.disliked_ingredients.includes(c.id) ? 'disliked' : ''}`}
+                  aria-pressed={taste.disliked_ingredients.includes(c.id)}
+                  onClick={() => toggleDislike(c.id)}
+                >
+                  <span>{c.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="taste-onboarding-footer">
+          <button type="button" className="button secondary small-button" onClick={skipOnboarding}>
+            <span>Bỏ qua</span>
+          </button>
+          <button type="button" className="button primary small-button" onClick={completeOnboarding}>
+            <Check size={15} aria-hidden="true" />
+            <span>Hoàn tất & Xem món hợp gu</span>
           </button>
         </div>
       </div>

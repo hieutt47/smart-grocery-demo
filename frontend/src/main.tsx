@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {BrowserRouter, Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate} from 'react-router-dom';
 import {ChefHat, Heart, House, Info, RotateCcw, Search, Sparkles, X} from 'lucide-react';
 import {StoreProvider, useStore} from './context';
-import {Brand, Empty} from './components';
+import {Brand, Empty, TasteOnboardingModal} from './components';
 import {Home} from './pages/Home';
 import {Recipes} from './pages/Catalog';
 import {Assistant} from './pages/Assistant';
@@ -198,6 +198,8 @@ function App() {
           </NavLink>
         ))}
       </nav>
+
+      {store.ready && !store.expired && <TasteOnboardingModal />}
 
       {/* Toast Notification */}
       {store.toast && (
