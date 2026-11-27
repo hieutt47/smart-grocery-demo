@@ -12,7 +12,7 @@ export interface TasteProfile {
   onboarded: boolean;
 }
 
-const TASTE_KEY = 'bua_nha_taste_profile_v2';
+const TASTE_KEY = 'bua_nha_taste_profile_v3';
 
 export const PERSONA_DEFINITIONS: {
   id: PersonaId;

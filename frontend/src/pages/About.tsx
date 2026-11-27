@@ -15,7 +15,7 @@ export function About() {
       await api('/session-data', 'DELETE');
       try {
         localStorage.removeItem('bua_nha_saved_recipes');
-        localStorage.removeItem('bua_nha_taste_profile_v2');
+        localStorage.removeItem('bua_nha_taste_profile_v3');
       } catch {
         // ignore
       }

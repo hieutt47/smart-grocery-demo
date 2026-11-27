@@ -323,12 +323,14 @@ export function TasteOnboardingModal() {
   const {notify} = useStore();
   const [taste, setTaste] = useState<TasteProfile>(getTasteProfile);
   const [manualOpen, setManualOpen] = useState(false);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
   useEffect(() => subscribeTaste(setTaste), []);
 
   useEffect(() => {
     const handler = () => {
       setTaste(getTasteProfile());
+      setStep(1);
       setManualOpen(true);
     };
     window.addEventListener('open-taste-onboarding', handler);
@@ -382,26 +384,45 @@ export function TasteOnboardingModal() {
     notify('Đã cá nhân hóa thực đơn theo gu của bạn!');
   }
 
+  const stepHeading =
+    step === 1
+      ? 'Bạn thuộc nhóm ăn uống nào?'
+      : step === 2
+        ? 'Vote các món bạn khoái khẩu nhất'
+        : 'Có món nào bạn KHÔNG ăn hoặc muốn tránh?';
+
+  const stepSub =
+    step === 1
+      ? 'Chọn 1 phong cách gần nhất với nhịp sống của bạn để Bữa Nhà ưu tiên món phù hợp.'
+      : step === 2
+        ? 'Chọn thoải mái các nhóm nguyên liệu và kiểu món bạn hay thèm (có thể chọn nhiều).'
+        : 'Hệ thống và Trợ lý AI sẽ tự động lọc bỏ các món chứa nguyên liệu này khỏi thực đơn.';
+
   return (
     <div
       className="modal-backdrop taste-onboarding-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="taste-onboarding-title"
+      aria-label="Bạn thích ăn uống theo gu nào?"
     >
       <div className="taste-onboarding-modal">
         <div className="taste-onboarding-top">
-          <span className="eyebrow">✨ Cá nhân hóa thực đơn · Chỉ hỏi 1 lần duy nhất</span>
-          <h2 id="taste-onboarding-title">Bạn thích ăn uống theo gu nào?</h2>
-          <p className="small muted">
-            Vote nhanh 3 câu dưới đây để Bữa Nhà và Trợ lý AI lọc đúng những món hợp nhất với bạn.
-          </p>
+          <div className="taste-step-meta">
+            <span className="eyebrow">✨ Làm quen 1 lần duy nhất</span>
+            <span className="taste-step-counter">Câu {step} / 3</span>
+          </div>
+          <div className="taste-step-bar" aria-hidden="true">
+            {[1, 2, 3].map(s => (
+              <span key={s} className={`taste-step-segment ${s <= step ? 'active' : ''}`} />
+            ))}
+          </div>
+          <h2 id="taste-onboarding-title">{stepHeading}</h2>
+          <p className="small muted">{stepSub}</p>
         </div>
 
         <div className="taste-onboarding-body">
-          <div className="taste-q-block">
-            <h3 className="taste-q-title">Câu 1: Bạn thuộc nhóm đối tượng nào?</h3>
-            <div className="persona-grid" role="group" aria-label="Câu 1: Bạn thuộc nhóm đối tượng nào?">
+          {step === 1 && (
+            <div className="persona-grid step-persona-grid" role="group" aria-label="Câu 1: Bạn thuộc nhóm đối tượng nào?">
               {PERSONA_DEFINITIONS.map(p => (
                 <button
                   type="button"
@@ -416,51 +437,84 @@ export function TasteOnboardingModal() {
                 </button>
               ))}
             </div>
-          </div>
+          )}
 
-          <div className="taste-q-block">
-            <h3 className="taste-q-title">Câu 2: Vote các món / nguyên liệu bạn thích ăn (Chọn nhiều):</h3>
-            <div className="taste-chips-group" role="group" aria-label="Câu 2: Món khoái khẩu">
-              {TASTE_LIKE_CHIPS.map(c => (
-                <button
-                  type="button"
-                  key={c.id}
-                  className={`taste-chip-btn ${taste.liked_tags.includes(c.id) ? 'liked' : ''}`}
-                  aria-pressed={taste.liked_tags.includes(c.id)}
-                  onClick={() => toggleLikeTag(c.id)}
-                >
-                  <span>{c.label}</span>
-                </button>
-              ))}
+          {step === 2 && (
+            <div className="taste-topic-grid" role="group" aria-label="Câu 2: Món khoái khẩu">
+              {TASTE_LIKE_CHIPS.map(c => {
+                const active = taste.liked_tags.includes(c.id);
+                return (
+                  <button
+                    type="button"
+                    key={c.id}
+                    className={`taste-topic-card ${active ? 'liked' : ''}`}
+                    aria-pressed={active}
+                    onClick={() => toggleLikeTag(c.id)}
+                  >
+                    <span>{c.label}</span>
+                    {active && <Check size={15} aria-hidden="true" />}
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          )}
 
-          <div className="taste-q-block">
-            <h3 className="taste-q-title">Câu 3: Có món nào bạn KHÔNG ăn hoặc muốn tránh không?</h3>
-            <div className="taste-chips-group" role="group" aria-label="Câu 3: Nguyên liệu muốn tránh">
-              {TASTE_DISLIKE_CHIPS.map(c => (
-                <button
-                  type="button"
-                  key={c.id}
-                  className={`taste-chip-btn ${taste.disliked_ingredients.includes(c.id) ? 'disliked' : ''}`}
-                  aria-pressed={taste.disliked_ingredients.includes(c.id)}
-                  onClick={() => toggleDislike(c.id)}
-                >
-                  <span>{c.label}</span>
-                </button>
-              ))}
+          {step === 3 && (
+            <div className="taste-q-block">
+              <div className="taste-topic-grid" role="group" aria-label="Câu 3: Nguyên liệu muốn tránh">
+                {TASTE_DISLIKE_CHIPS.map(c => {
+                  const active = taste.disliked_ingredients.includes(c.id);
+                  return (
+                    <button
+                      type="button"
+                      key={c.id}
+                      className={`taste-topic-card ${active ? 'disliked' : ''}`}
+                      aria-pressed={active}
+                      onClick={() => toggleDislike(c.id)}
+                    >
+                      <span>{c.label}</span>
+                      {active && <Check size={15} aria-hidden="true" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="small muted taste-step-hint">
+                💡 Nếu bạn ăn được tất cả mọi thứ, cứ để trống và bấm <strong>Hoàn tất</strong> ngay bên dưới nhé!
+              </p>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="taste-onboarding-footer">
-          <button type="button" className="button secondary small-button" onClick={skipOnboarding}>
-            <span>Bỏ qua</span>
-          </button>
-          <button type="button" className="button primary small-button" onClick={completeOnboarding}>
-            <Check size={15} aria-hidden="true" />
-            <span>Hoàn tất & Xem món hợp gu</span>
-          </button>
+          {step === 1 ? (
+            <button type="button" className="button secondary small-button" onClick={skipOnboarding}>
+              <span>Bỏ qua</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="button secondary small-button"
+              onClick={() => setStep(s => (s === 3 ? 2 : 1))}
+            >
+              <span>← Quay lại</span>
+            </button>
+          )}
+
+          {step < 3 ? (
+            <button
+              type="button"
+              className="button primary small-button"
+              onClick={() => setStep(s => (s === 1 ? 2 : 3))}
+            >
+              <span>Tiếp theo</span>
+              <ArrowRight size={15} aria-hidden="true" />
+            </button>
+          ) : (
+            <button type="button" className="button primary small-button" onClick={completeOnboarding}>
+              <Check size={15} aria-hidden="true" />
+              <span>Hoàn tất & Xem món hợp gu</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

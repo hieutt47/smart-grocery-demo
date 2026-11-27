@@ -3,9 +3,9 @@ import {test, expect} from '@playwright/test';
 test.beforeEach(async ({page}, testInfo) => {
   if (testInfo.title.includes('personalization onboarding')) return;
   await page.addInitScript(() => {
-    if (!localStorage.getItem('bua_nha_taste_profile_v2')) {
+    if (!localStorage.getItem('bua_nha_taste_profile_v3')) {
       localStorage.setItem(
-        'bua_nha_taste_profile_v2',
+        'bua_nha_taste_profile_v3',
         JSON.stringify({
           persona: null,
           liked_tags: [],
@@ -241,13 +241,22 @@ test('mobile layout, redirect legacy routes, and session reset', async ({page, c
 
 test('personalization onboarding ranks recipes for selected persona', async ({page}) => {
   await page.goto('/');
-  // 1-time onboarding survey modal pops up automatically on first visit
+  // 1-time onboarding survey modal pops up automatically on first visit (Step 1/3)
   const modal = page.getByRole('dialog', {name: /Bạn thích ăn uống theo gu nào/});
   await expect(modal).toBeVisible();
+  await expect(modal.getByText('Câu 1 / 3')).toBeVisible();
 
-  // Vote on Q1 (Persona), Q2 (Liked dishes), Q3 (Disliked ingredients)
+  // Step 1: Vote Persona -> Click Next
   await modal.getByRole('button', {name: /Eat Clean & Giữ dáng/}).click();
+  await modal.getByRole('button', {name: 'Tiếp theo'}).click();
+
+  // Step 2: Vote Liked food topics -> Click Next
+  await expect(modal.getByText('Câu 2 / 3')).toBeVisible();
   await modal.getByRole('button', {name: /Mê thịt gà/}).click();
+  await modal.getByRole('button', {name: 'Tiếp theo'}).click();
+
+  // Step 3: Vote Disliked ingredients -> Click Finish
+  await expect(modal.getByText('Câu 3 / 3')).toBeVisible();
   await modal.getByRole('button', {name: /Không thích cá/}).click();
   await modal.getByRole('button', {name: 'Hoàn tất & Xem món hợp gu'}).click();
 
